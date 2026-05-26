@@ -1,87 +1,99 @@
 # app/services/reportes.py
 """
 Capa de Servicio (Lógica de Negocio).
-Responsabilidad: Coordinar y procesar las reglas de negocio de la entidad "Reporte".
-Maneja la lógica operacional independientemente de la infraestructura externa de la base de datos.
+Responsabilidad: Implementar la lógica operacional para el recurso "Reporte".
+Maneja las validaciones de negocio y controla la base de datos temporal en memoria.
 
-Este servicio implementa una persistencia temporal en memoria para cumplir con los
-requerimientos académicos de la primera fase, encapsulando las variables privadas
-dentro de la clase `ReporteService`.
+En esta fase, la persistencia es en memoria mediante la lista privada `_reportes`.
+Si un recurso solicitado no existe, el servicio lanza un error HTTP 404 que será
+capturado por el manejador global de excepciones en la entrada de la aplicación.
 """
 
 import json
 import logging
 from datetime import datetime
 from typing import List, Optional
+from fastapi import HTTPException, status
 
 from app.models.reporte import ReporteModel
 from app.schemas.reporte import ReporteCreate, ReporteUpdate
 from app.redis.client import get_redis_client
 
-# Configuración del registrador de logs de Python para esta capa
+# Configuración del log para depurar operaciones
 logger = logging.getLogger(__name__)
 
 class ReporteService:
     """
-    Clase de servicio que centraliza las operaciones de negocio de los Reportes.
-    Implementa almacenamiento en memoria estática para simular una base de datos.
+    Clase que implementa los servicios de negocio de Reportes de Infraestructura.
+    Almacena los registros temporalmente en una lista estática privada de la clase.
     """
     
-    # === Persistencia Temporal Privada (Simulación Académica) ===
-    # _reportes: Lista privada de clase para almacenar instancias de ReporteModel.
+    # Lista privada de reportes que actúa como base de datos en memoria
     _reportes: List[ReporteModel] = []
     
-    # _next_id: Contador privado secuencial de clase para asignar IDs únicos autoincrementales.
+    # Secuenciador numérico privado autoincremental para las llaves primarias (IDs)
     _next_id: int = 1
 
     @classmethod
-    def obtener_todos(cls) -> List[ReporteModel]:
+    def listar_todos(cls) -> List[ReporteModel]:
         """
-        Retorna la colección completa de reportes registrados.
+        Retorna todos los reportes actualmente almacenados en memoria.
+        Código de estado recomendado al responder: 200 OK (Solicitud exitosa con datos).
         """
-        logger.info("Recuperando todos los reportes desde la base de datos en memoria.")
+        logger.info("Servicio: Listando todos los reportes.")
         return cls._reportes
 
     @classmethod
-    def obtener_por_id(cls, reporte_id: int) -> Optional[ReporteModel]:
+    def obtener_por_id(cls, id: int) -> ReporteModel:
         """
-        Busca y retorna un reporte específico por su ID entero.
-        Si no existe, retorna None.
+        Busca un reporte específico por su ID único.
+        Si no se encuentra, lanza un HTTPException con código 404 (Not Found).
+        
+        ¿Por qué 404 Not Found?: Es el estándar HTTP para indicar que el recurso
+        solicitado no existe en el servidor.
         """
-        logger.info(f"Buscando reporte ID: {reporte_id} en memoria.")
+        logger.info(f"Servicio: Buscando reporte con ID: {id}.")
         for reporte in cls._reportes:
-            if reporte.id == reporte_id:
+            if reporte.id == id:
                 return reporte
-        return None
+        
+        # El recurso no existe, lanzamos excepción HTTP
+        logger.warning(f"Servicio: Reporte con ID {id} no fue encontrado.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Reporte {id} no encontrado"
+        )
 
     @classmethod
-    def crear(cls, datos: ReporteCreate) -> ReporteModel:
+    def crear(cls, reporte_en: ReporteCreate) -> ReporteModel:
         """
-        Crea una nueva entidad de Reporte, la guarda en memoria y publica un evento en Redis.
+        Crea un nuevo reporte basándose en el esquema de entrada (ReporteCreate).
+        Asigna un ID único secuencial, establece la prioridad en 'media' y
+        el estado en 'pendiente' por defecto, y define el timestamp de creación.
+        Retorna el objeto ReporteModel creado.
+        
+        Código de estado recomendado al responder: 201 Created (Nuevo recurso creado con éxito).
         """
-        # Instanciar el modelo mapeando los campos del DTO (Pydantic schema) al modelo físico
+        # Instanciar el modelo ORM mapeando los datos de entrada
         nuevo_reporte = ReporteModel(
             id=cls._next_id,
-            titulo=datos.titulo,
-            descripcion=datos.descripcion,
-            tipo_problema=datos.tipo_problema,
-            ubicacion=datos.ubicacion,
-            imagen_url=datos.imagen_url,
-            # Valores por defecto requeridos por las reglas del negocio:
-            prioridad="media",      # Todo reporte inicia con prioridad media
-            estado="pendiente",     # Todo reporte inicia en estado pendiente
-            creado_en=datetime.utcnow() # Timestamp de creación en UTC
+            titulo=reporte_en.titulo,
+            descripcion=reporte_en.descripcion,
+            tipo_problema=reporte_en.tipo_problema,
+            ubicacion=reporte_en.ubicacion,
+            imagen_url=reporte_en.imagen_url,
+            prioridad="media",          # Prioridad inicial predeterminada (Requisito Académico)
+            estado="pendiente",         # Estado inicial obligatorio (Requisito Académico)
+            creado_en=datetime.utcnow() # Fecha de registro en UTC
         )
         
-        # Guardar en nuestra persistencia temporal
+        # Guardar en persistencia temporal
         cls._reportes.append(nuevo_reporte)
-        
-        # Incrementar el secuenciador para el siguiente registro
         cls._next_id += 1
         
-        logger.info(f"Reporte ID {nuevo_reporte.id} guardado con éxito en memoria.")
+        logger.info(f"Servicio: Reporte creado exitosamente con ID: {nuevo_reporte.id}")
 
-        # Intentar publicar el evento en Redis (Pub/Sub) para los suscriptores activos
+        # Intentar notificar la creación en Redis Pub/Sub de manera asíncrona y segura
         try:
             redis_client = get_redis_client()
             evento = {
@@ -94,32 +106,33 @@ class ReporteService:
                 "creado_en": nuevo_reporte.creado_en.isoformat()
             }
             redis_client.publish("canal_infraestructura", json.dumps(evento))
-            logger.info("Evento de creación publicado en Redis.")
         except Exception as err:
-            # Captura de errores silenciosa: Si Redis está caído en local, el sistema no se detiene.
-            logger.warning(f"Error al enviar mensaje a Redis (modo académico continuado): {err}")
+            logger.warning(f"Servicio: No se pudo publicar en Redis (omisión académica activa): {err}")
             
         return nuevo_reporte
 
     @classmethod
-    def actualizar(cls, reporte_id: int, datos: ReporteUpdate) -> Optional[ReporteModel]:
+    def actualizar(cls, id: int, reporte_en: ReporteUpdate) -> ReporteModel:
         """
-        Actualiza de manera parcial la prioridad o el estado de un reporte existente.
+        Actualiza parcialmente los campos prioridad y/o estado de un reporte por su ID.
+        Si el reporte no existe, lanza un HTTPException 404 (Not Found) llamando internamente a obtener_por_id.
+        Modifica únicamente los campos que no sean nulos (None) en el payload del request.
+        Retorna el modelo modificado.
+        
+        Código de estado recomendado al responder: 200 OK (Modificación exitosa).
         """
-        reporte = cls.obtener_por_id(reporte_id)
-        if not reporte:
-            logger.warning(f"Intento de actualizar reporte inexistente con ID: {reporte_id}")
-            return None
+        # Buscar el reporte; si no existe, esta línea lanza automáticamente el error 404
+        reporte = cls.obtener_por_id(id)
+        
+        # Modificar únicamente los campos presentes en el cuerpo de la petición (Update parcial)
+        if reporte_en.prioridad is not None:
+            reporte.prioridad = reporte_en.prioridad
+        if reporte_en.estado is not None:
+            reporte.estado = reporte_en.estado
             
-        # Modificar campos opcionales si se proporcionaron valores en la petición
-        if datos.prioridad is not None:
-            reporte.prioridad = datos.prioridad
-        if datos.estado is not None:
-            reporte.estado = datos.estado
-            
-        logger.info(f"Reporte ID {reporte_id} actualizado en memoria.")
+        logger.info(f"Servicio: Reporte ID {id} actualizado. Nuevos valores -> Prioridad: {reporte.prioridad}, Estado: {reporte.estado}")
 
-        # Notificar el cambio a Redis Pub/Sub
+        # Notificar la actualización a Redis Pub/Sub
         try:
             redis_client = get_redis_client()
             evento = {
@@ -129,36 +142,39 @@ class ReporteService:
                 "estado": reporte.estado
             }
             redis_client.publish("canal_infraestructura", json.dumps(evento))
-            logger.info("Evento de actualización publicado en Redis.")
         except Exception as err:
-            logger.warning(f"Error al enviar actualización a Redis: {err}")
+            logger.warning(f"Servicio: No se pudo notificar la actualización en Redis: {err}")
             
         return reporte
 
     @classmethod
-    def eliminar(cls, reporte_id: int) -> bool:
+    def eliminar(cls, id: int) -> bool:
         """
-        Remueve un reporte por su ID de la base de datos temporal en memoria.
-        Retorna True si fue eliminado, False en caso contrario.
+        Busca un reporte por su ID. Si no existe, lanza un HTTPException 404 (Not Found).
+        Si existe, lo remueve de la lista en memoria y retorna True.
+        
+        Código de estado recomendado al responder: 200 OK (Operación exitosa con mensaje de confirmación).
         """
+        # Validar existencia del reporte; lanza 404 si no existe
+        cls.obtener_por_id(id)
+        
+        # Eliminar el elemento de la lista
         for indice, reporte in enumerate(cls._reportes):
-            if reporte.id == reporte_id:
+            if reporte.id == id:
                 cls._reportes.pop(indice)
-                logger.info(f"Reporte ID {reporte_id} eliminado de memoria.")
+                logger.info(f"Servicio: Reporte ID {id} removido del almacenamiento temporal.")
                 
-                # Publicar evento de eliminación en Redis Pub/Sub
+                # Notificar la eliminación en Redis Pub/Sub
                 try:
                     redis_client = get_redis_client()
                     evento = {
                         "evento": "REPORTE_ELIMINADO",
-                        "id": reporte_id,
+                        "id": id,
                         "fecha": datetime.utcnow().isoformat()
                     }
                     redis_client.publish("canal_infraestructura", json.dumps(evento))
-                    logger.info("Evento de eliminación publicado en Redis.")
                 except Exception as err:
-                    logger.warning(f"Error al enviar eliminación a Redis: {err}")
+                    logger.warning(f"Servicio: No se pudo notificar la eliminación en Redis: {err}")
                 return True
                 
-        logger.warning(f"Intento de eliminar reporte inexistente con ID: {reporte_id}")
         return False
