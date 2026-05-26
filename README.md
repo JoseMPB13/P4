@@ -118,3 +118,46 @@ Si tienes un servidor de Redis corriendo localmente o en la nube, puedes levanta
 python subscriber.py
 ```
 *   *Nota: Si Redis no está encendido, la API backend funcionará perfectamente en su almacenamiento temporal de memoria sin lanzar excepciones fatales.*
+
+---
+
+## 🌐 Despliegue en Producción (Render)
+
+Esta sección detalla los parámetros de configuración y los conceptos técnicos clave para desplegar la Plataforma de Reportes de Infraestructura Universitaria en la nube utilizando **Render**.
+
+### 🔗 URL Pública del Proyecto
+*   **Enlace de Producción:** (Pendiente de despliegue en Render, ej: `https://p4-infraestructura.onrender.com/docs`)
+
+### 🛠️ Configuración del Servicio en Render
+Al crear un nuevo **Web Service** en Render, utiliza la siguiente configuración en su panel de administración:
+
+*   **Runtime:** `Python 3`
+*   **Build Command (Comando de Construcción):**
+    ```bash
+    pip install -r requirements.txt
+    ```
+*   **Start Command (Comando de Arranque):**
+    ```bash
+    uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ```
+    *(Nota: El servidor lee de forma segura e interna la variable `PORT` proporcionada dinámicamente por la plataforma de Render, ignorando el valor por defecto si se especifica en el entorno de producción).*
+
+### 🔑 Variables de Entorno Requeridas (Environment Variables)
+Configura las siguientes variables en la sección **Environment** en Render:
+
+1.  `PORT`: Definida automáticamente por Render, indica el puerto asignado para la ejecución.
+2.  `NODE_ENV`: Debe configurarse en `production` para optimizar la velocidad y desactivar el reload automático.
+3.  `DATABASE_URL`: URL de conexión a la base de datos PostgreSQL de producción.
+4.  `REDIS_URL`: URL de conexión segura al servidor Redis (Upstash) de producción.
+
+---
+
+### 🔍 Explicación Técnica: ¿Por qué usar Host '0.0.0.0' en lugar de '127.0.0.1'?
+
+En redes y virtualización de contenedores, la dirección a la que se enlaza (bind) el servidor web define el alcance de las peticiones que este puede recibir:
+
+*   **`127.0.0.1` (Localhost / Loopback):**
+    Si configuramos uvicorn para escuchar en `127.0.0.1`, el servidor web solo aceptará peticiones de red originadas **dentro del mismo contenedor/máquina virtual**. Cualquier petición que provenga de internet o de los balanceadores de carga externos de Render será rechazada de inmediato, haciendo que el servicio sea inaccesible.
+*   **`0.0.0.0` (All Interfaces):**
+    Configurar el host en `0.0.0.0` le indica al servidor web que escuche peticiones en **todas las interfaces de red disponibles** en el contenedor. Esto permite que la infraestructura y enrutadores de Render (los cuales mapean el tráfico público de internet hacia el puerto interno del contenedor) puedan reenviar exitosamente el tráfico de los clientes externos a la aplicación FastAPI.
+

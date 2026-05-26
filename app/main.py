@@ -194,4 +194,12 @@ def verificar_salud():
     }
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=True)
+    import os
+    # Conversión segura del puerto a partir de variables de entorno para despliegues como Render
+    puerto = int(os.getenv("PORT", settings.PORT))
+    # En producción deshabilitamos el reload automático para mejorar el rendimiento
+    es_produccion = os.getenv("NODE_ENV", settings.NODE_ENV) == "production"
+    
+    logger.info(f"Iniciando servidor en el puerto: {puerto} (Producción: {es_produccion})")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=puerto, reload=not es_produccion)
+
