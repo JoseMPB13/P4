@@ -1,82 +1,117 @@
 # subscriber.py
 """
-Suscriptor Independiente de Eventos Redis (Patrón Pub/Sub).
-Responsabilidad: Escuchar eventos asíncronos en tiempo real que se publiquen
-en el canal 'canal_infraestructura' de Redis.
-Muestra en consola cuando un reporte es creado, modificado o eliminado.
-Este proceso corre de forma separada al servidor de la API backend.
+Suscriptor Autónomo de Redis (Pub/Sub Pattern).
+Responsabilidad: Escuchar asíncronamente eventos de infraestructura publicados
+bajo el patrón "infra:*" y registrar la información en consola en tiempo real.
+
+Este script está diseñado para correr en un proceso de sistema operativo y terminal
+completamente SEPARADO de la API de FastAPI.
+
+================================================================================
+⚠️ RESTRICCIÓN TÉCNICA IMPORTANTE: Bloqueo de Conexión en Pub/Sub
+================================================================================
+En el protocolo de comunicación de Redis, cuando una conexión entra en modo de
+suscripción (ejecutando SUBSCRIBE o PSUBSCRIBE), el canal de socket queda reservado
+únicamente para recibir mensajes enviados por el servidor. 
+Esta conexión queda BLOQUEADA para enviar otros comandos comunes de Redis como GET, SET,
+o PUBLISH. Si intentamos realizar otra operación sobre esta misma conexión, Redis
+retornará un error.
+
+Por tanto, es obligatorio:
+1. Tener un cliente de Redis con conexión dedicada y exclusiva para el suscriptor.
+2. Mantener al publicador (dentro de FastAPI) con su propio pool de conexiones independiente.
 """
 
-import time
+import os
 import json
 import logging
-from app.redis.client import get_redis_client
-from app.core.config import settings
+from dotenv import load_dotenv
+import redis
 
-# Configurar logs específicos para el proceso de suscripción
+# Configuración del formateador de logs en consola
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [SUSCRIPTOR] %(levelname)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] %(message)s"
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("subscriber")
+
+# 1. Cargar las variables de entorno desde el archivo .env ubicado en la raíz
+load_dotenv()
+
+# Obtener la URL de conexión segura de Upstash Redis
+redis_url = os.getenv("REDIS_URL")
+
+if not redis_url:
+    logger.error("❌ Error: La variable REDIS_URL no está definida en el archivo .env.")
+    exit(1)
 
 def iniciar_suscriptor():
     """
-    Se conecta a Redis, se suscribe al canal de incidencias de infraestructura
-    y escucha en bucle los mensajes publicados por el servicio de reportes.
-    Incluye lógica de reintento ante desconexiones.
+    Inicializa la conexión dedicada y suscribe al cliente al patrón de canales 'infra:*'.
     """
-    canal_suscripcion = "canal_infraestructura"
-    
     logger.info("=========================================================")
-    logger.info("Iniciando el suscriptor de eventos de Infraestructura...")
-    logger.info(f"URL de Redis configurada: {settings.REDIS_URL}")
+    logger.info("[Redis Sub] Iniciando suscriptor autónomo de eventos...")
     logger.info("=========================================================")
-    
-    intentos_conexion = 0
-    
-    while True:
-        try:
-            # Obtiene el cliente Redis configurado
-            client = get_redis_client()
-            
-            # Crea un objeto PubSub
-            pubsub = client.pubsub()
-            
-            # Se suscribe al canal
-            pubsub.subscribe(canal_suscripcion)
-            logger.info(f"Suscrito con éxito al canal: '{canal_suscripcion}'")
-            logger.info("Esperando eventos de reportes... Presiona Ctrl+C para salir.")
-            
-            intentos_conexion = 0 # Reiniciar contador al conectar con éxito
-            
-            # Escucha indefinida de mensajes
-            for mensaje in pubsub.listen():
-                # Redis envía un mensaje inicial de tipo 'subscribe' al confirmar la conexión
-                if mensaje["type"] == "subscribe":
-                    logger.info(f"Confirmación de suscripción: {mensaje}")
-                    continue
-                
-                # Cargar el contenido del mensaje (se decodifica de forma automática gracias a decode_responses=True)
-                data_string = mensaje["data"]
+
+    try:
+        # 2. Crear una instancia de conexión independiente dedicada exclusivamente al suscriptor
+        # decode_responses=True decodifica automáticamente los payloads JSON de bytes a string UTF-8
+        client = redis.Redis.from_url(redis_url, decode_responses=True)
+        
+        # Validar la conexión inicial con un PING
+        client.ping()
+        logger.info("📡 [Redis Sub] Conexión establecida con Upstash Redis exitosamente.")
+
+        # 3. Crear el objeto Pub/Sub dedicado
+        pubsub_obj = client.pubsub()
+
+        # 4. Suscribirse por patrón utilizando el wildcard (*)
+        # Esto captura simultáneamente todos los canales bajo el espacio 'infra:',
+        # por ejemplo: 'infra:reporte:creado' e 'infra:reporte:actualizado'
+        patron = "infra:*"
+        pubsub_obj.psubscribe(patron)
+        logger.info(f"🔍 [Redis Sub] Escuchando patrón '{patron}' en canales de Upstash...")
+        logger.info("💡 Esperando eventos entrantes. Presiona Ctrl+C para salir.\n")
+
+        # 5. Ciclo infinito bloqueante que escucha y procesa los mensajes entrantes
+        for mensaje in pubsub_obj.listen():
+            # El primer mensaje recibido tras la suscripción es una confirmación de tipo 'psubscribe',
+            # la cual omitimos. Solo procesamos mensajes de tipo 'pmessage' (mensajes por patrón).
+            if mensaje["type"] == "pmessage":
+                canal_origen = mensaje["channel"]
+                datos_raw = mensaje["data"]
+
                 try:
-                    evento = json.loads(data_string)
-                    logger.info("---------------------------------------------------------")
-                    logger.info(f"¡Evento Detectado!: {evento.get('evento')}")
-                    logger.info(f"ID del Reporte: {evento.get('id')}")
-                    logger.info(f"Datos completos: {json.dumps(evento, indent=2, ensure_ascii=False)}")
-                    logger.info("---------------------------------------------------------")
-                except json.JSONDecodeError:
-                    logger.warning(f"Se recibió un mensaje con formato no JSON: {data_string}")
+                    # Deserializar la carga útil en formato JSON
+                    evento = json.loads(datos_raw)
                     
-        except (ConnectionError, Exception) as err:
-            intentos_conexion += 1
-            logger.error(f"Error en la conexión del suscriptor: {err}")
-            logger.info(f"Reintentando conectar a Redis en 5 segundos (Intento #{intentos_conexion})...")
-            time.sleep(5)
+                    tipo_evento = evento.get("tipo", "desconocido")
+                    timestamp = evento.get("timestamp", "desconocido")
+                    payload = evento.get("payload", {})
+
+                    # Extraer detalles específicos del reporte
+                    reporte_id = payload.get("id", "N/A")
+                    titulo = payload.get("titulo", "Sin título")
+                    ubicacion = payload.get("ubicacion", "Sin ubicación")
+                    estado = payload.get("estado", "desconocido")
+
+                    # Log visual elegante solicitado
+                    print("=" * 70)
+                    print(f"📢 [EVENTO RECIBIDO] Canal: {canal_origen} | Tipo: {tipo_evento} | Timestamp: {timestamp}")
+                    print(f"Datos del Reporte: [ID: {reporte_id}] - {titulo} | Ubicación: {ubicacion} | Estado: {estado}")
+                    print("=" * 70 + "\n")
+
+                except json.JSONDecodeError:
+                    logger.warning(f"⚠️ Recibido mensaje no deserializable en canal {canal_origen}: {datos_raw}")
+                except Exception as ex:
+                    logger.error(f"❌ Error al procesar el mensaje: {ex}")
+
+    except redis.ConnectionError as err:
+        logger.error(f"❌ Error de conexión en el suscriptor de Redis: {err}")
+    except KeyboardInterrupt:
+        logger.info("\n🛑 Suscriptor detenido por el usuario (KeyboardInterrupt).")
+    except Exception as err:
+        logger.error(f"❌ Ocurrió un error inesperado en el suscriptor: {err}")
 
 if __name__ == "__main__":
-    try:
-        iniciar_suscriptor()
-    except KeyboardInterrupt:
-        logger.info("Suscriptor detenido manualmente por el usuario.")
+    iniciar_suscriptor()

@@ -1,36 +1,55 @@
 # app/redis/client.py
 """
-Cliente de Redis.
-Responsabilidad: Establecer y exponer la conexión al servidor de Redis.
-Maneja un pool de conexiones de manera que sea eficiente y seguro para
-operaciones clave-valor y el patrón de publicación/suscripción (Pub/Sub).
+Módulo de Configuración de la Infraestructura de Redis.
+Responsabilidad: Instanciar y validar la conexión al servidor de mensajería Redis (Upstash)
+utilizando la URL de conexión cargada desde las variables de entorno.
+
+Incluye la prueba de conexión (.ping()) para confirmar la disponibilidad del servicio.
 """
 
 import redis
 import logging
 from app.core.config import settings
 
-# Configuración básica de logs
+# Configuración de logs
 logger = logging.getLogger(__name__)
 
+# Pool de conexiones global para Redis
+redis_pool = None
+
 try:
-    # Se inicializa el pool de conexiones usando la URL cargada de la configuración
-    # decode_responses=True decodifica los bytes recibidos de Redis a strings de Python
+    # 1. Crear el pool de conexiones usando la URL de conexión segura (REDIS_URL de .env)
+    # decode_responses=True decodifica automáticamente los bytes recibidos de Redis a strings UTF-8 de Python
     redis_pool = redis.ConnectionPool.from_url(
         settings.REDIS_URL,
         decode_responses=True,
-        socket_connect_timeout=2.0 # Evitar bloqueos indefinidos si Redis no responde
+        socket_connect_timeout=3.0, # Límite de 3 segundos para evitar bloqueos del hilo principal
+        socket_timeout=3.0
     )
-    logger.info("Pool de conexiones de Redis configurado exitosamente.")
-except Exception as e:
-    logger.error(f"Error al configurar el pool de conexiones de Redis: {e}")
-    redis_pool = None
+    
+    # 2. Validar inmediatamente la conexión a Upstash mediante un comando PING
+    # Instanciamos un cliente temporal únicamente para realizar el ping de control
+    test_client = redis.Redis(connection_pool=redis_pool)
+    if test_client.ping():
+        logger.info("📡 [REDIS] Conexión establecida y validada con Upstash Redis (PING exitoso).")
+    else:
+        logger.warning("📡 [REDIS] El servidor Redis respondió de manera anormal al comando PING.")
+        
+except redis.ConnectionError as err:
+    # Error específico de conexión a nivel de red o credenciales incorrectas
+    logger.error(
+        f"❌ [REDIS ERROR] Falló la conexión inicial con Upstash Redis. "
+        f"Verifica la variable REDIS_URL en el archivo .env. Detalles del error: {err}"
+    )
+except Exception as err:
+    # Capturar cualquier otro error inesperado durante la inicialización
+    logger.error(f"❌ [REDIS ERROR] Error inesperado al configurar Redis: {err}")
 
 def get_redis_client() -> redis.Redis:
     """
-    Obtiene y retorna una instancia del cliente de Redis.
-    Puede usarse como dependencia o invocarse directamente.
+    Retorna una instancia activa del cliente Redis asociada al pool de conexiones global.
+    Esta función se inyectará en la lógica del servicio para publicar eventos.
     """
     if redis_pool is None:
-        raise ConnectionError("El pool de conexiones de Redis no fue inicializado correctamente.")
+        raise ConnectionError("El pool de conexiones de Redis no ha sido inicializado.")
     return redis.Redis(connection_pool=redis_pool)
