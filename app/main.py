@@ -1,12 +1,22 @@
 # app/main.py
 """
 Punto de Entrada Principal de FastAPI.
-Responsabilidad: Instanciar la aplicación FastAPI, incluir el enrutador de reportes
-bajo el prefijo de API global (/api) y registrar los manejadores de excepciones
-globales (Exception Handlers) para formatear respuestas de error uniformes.
+Responsabilidad: Configurar el framework de FastAPI, registrar middlewares
+en el orden correcto de ejecución (CORS y Rate Limiting), definir los manejadores
+de excepciones globales y personalizar el esquema de OpenAPI para soportar Bearer JWT.
 
-Contiene comentarios detallados en español sobre el flujo de control
-y la asignación de códigos de estado HTTP para los errores.
+Explicación del Flujo de Peticiones y Middlewares:
+- En FastAPI/Starlette, los middlewares se envuelven en una pila (LIFO). El último middleware
+  agregado con `app.add_middleware` es el más externo y el primero en procesar la petición.
+- Por esta razón, añadimos primero `RateLimitMiddleware` y de último `CORSMiddleware`.
+- Flujo resultante de la petición:
+  Petición Entrante -> [CORS Middleware] -> [Rate Limit Middleware] -> [Manejador de Rutas API]
+- ¿Por qué CORS debe ejecutarse antes?:
+  1. Preflight Requests (OPTIONS): Las peticiones CORS OPTIONS no deben consumir el cupo de peticiones
+     del limitador de frecuencia. CORSMiddleware intercepta y responde a estas solicitudes directamente.
+  2. Respuestas de Bloqueo (429): Si el Rate Limiter bloquea a un usuario y CORS se ejecutara después,
+     la respuesta 429 carecería de las cabeceras CORS necesarias, causando que el navegador del cliente
+     bloquee la lectura del error debido a políticas de origen cruzado (CORS error).
 """
 
 import uvicorn
@@ -15,47 +25,61 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from datetime import datetime
 import logging
 
 from app.core.config import settings
 from app.api.endpoints.reportes import router as reportes_router
 from app.redis.client import get_redis_client
+# Importación del middleware personalizado de control de frecuencia
+from app.middlewares.rate_limit import RateLimitMiddleware
 
-# Configuración del registrador de logs
+# Configuración del log
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Instancia de la aplicación FastAPI
+# Instancia de FastAPI con metadatos personalizados para OpenAPI
 app = FastAPI(
-    title="Plataforma de Reportes de Infraestructura Universitaria",
-    description="Backend FastAPI con arquitectura limpia y manejo de errores consistente.",
-    version="1.1.0"
+    title="Plataforma de Reportes de Infraestructura Universitaria API",
+    description=(
+        "Backend para la administración de incidencias de infraestructura universitaria. "
+        "Permite el registro, priorización, control de estados de reportes y difusión de eventos mediante Redis."
+    ),
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-# Configuración de CORS para permitir solicitudes del navegador (Frontend)
+# =========================================================================
+# 🛡️ REGISTRO DE MIDDLEWARES (Orden Inverso de Declaración)
+# =========================================================================
+
+# 1. Agregamos el Rate Limiting (más interno que CORS)
+app.add_middleware(RateLimitMiddleware)
+
+# 2. Agregamos CORS (más externo, se ejecuta primero)
+# Configurado para permitir orígenes de desarrollo típicos en React/Vite
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",  # Puerto por defecto de Vite
+        "http://localhost:3000"   # Puerto común en React/Next.js
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # =========================================================================
-# 🛡️ MANEJADORES GLOBALES DE EXCEPCIONES (Materia/Requisito Académico)
+# 🛡️ MANEJADORES GLOBALES DE EXCEPCIONES
 # =========================================================================
 
-# 1. Manejador para excepciones de tipo HTTPException (FastAPI o lanzadas por el desarrollador)
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """
-    Captura cualquier error HTTP (ej: 404 de recurso no encontrado, 403 prohibido).
-    Retorna una estructura JSON consistente para el cliente.
-    """
     logger.warning(f"HTTPException capturada: {exc.status_code} - {exc.detail} en {request.url.path}")
     return JSONResponse(
         status_code=exc.status_code,
@@ -66,31 +90,19 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         }
     )
 
-# 2. Manejador para errores de validación de esquemas (Pydantic / RequestValidationError)
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """
-    Captura los errores de validación de datos (cuando el JSON enviado no cumple con el esquema Pydantic).
-    Transforma los detalles internos de Pydantic a un string comprensible y unificado.
-    
-    ¿Por qué Código 422 Unprocessable Entity?: Es el estándar en APIs HTTP para indicar
-    que la sintaxis de la petición es correcta, pero contiene datos semánticamente incorrectos
-    o faltantes que el servidor no puede procesar.
-    """
     logger.warning(f"Error de validación capturado en {request.url.path}: {exc.errors()}")
-    
-    # Formatear la lista de errores para generar un mensaje amigable
     mensajes_errores = []
     for error in exc.errors():
-        # loc indica la ubicación del campo erróneo, ej: ('body', 'titulo')
         campo = " -> ".join(str(x) for x in error.get("loc", [])[1:])
         detalles = error.get("msg", "valor inválido")
         mensajes_errores.append(f"[{campo}]: {detalles}")
         
-    error_unificado = "; ".join(mensajes_errores) if mensajes_errores else "Error de validación en los datos de entrada."
+    error_unificado = "; ".join(mensajes_errores) if mensajes_errores else "Error de validación en los datos."
 
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, # Código estándar 422
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "error": f"Error de validación: {error_unificado}",
             "timestamp": datetime.utcnow().isoformat(),
@@ -98,19 +110,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
-# 3. Manejador genérico para cualquier otro error inesperado (Exception de Python)
 @app.exception_handler(Exception)
 async def global_unexpected_exception_handler(request: Request, exc: Exception):
-    """
-    Manejador global para atrapar cualquier error no controlado por el código (ej: fallos de lógica de Python,
-    errores de punteros o bases de datos caídas sin control). Previene que la API colapse y exponga el traceback.
-    
-    ¿Por qué Código 500 Internal Server Error?: Es el estándar para indicar que el servidor
-    encontró una condición inesperada que le impidió completar la solicitud del cliente.
-    """
-    logger.error(f"Error inesperado no controlado: {str(exc)} en {request.url.path}", exc_info=True)
+    logger.error(f"Error no controlado: {str(exc)} en {request.url.path}", exc_info=True)
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, # Código estándar 500
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": f"Error interno en el servidor: {str(exc)}",
             "timestamp": datetime.utcnow().isoformat(),
@@ -119,20 +123,53 @@ async def global_unexpected_exception_handler(request: Request, exc: Exception):
     )
 
 # =========================================================================
+# 📝 PERSONALIZACIÓN DE OPENAPI (JWT Bearer Auth en Swagger)
+# =========================================================================
+
+def custom_openapi():
+    """
+    Función para sobrescribir el esquema OpenAPI autogenerado de FastAPI.
+    Inyecta de forma segura el esquema BearerAuth en la sección components
+    para habilitar el botón "Authorize" en Swagger UI.
+    """
+    if app.openapi_schema:
+        return app.openapi_schema
+        
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Asegurar que la estructura components exista en el JSON
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+        
+    # Inyectar la configuración de seguridad Bearer JWT
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Ingresa el token JWT en el formato: Bearer <TOKEN>"
+        }
+    }
+    
+    # Asignar la seguridad de forma opcional (puede aplicarse individualmente en los endpoints)
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+# Sobrescribir el método openapi nativo con nuestra función personalizada
+app.openapi = custom_openapi
+
+# =========================================================================
 # Enrutamiento de la API
 # =========================================================================
 
-# Registramos el router de reportes bajo el prefijo '/api'
-# Dado que el router de reportes tiene prefix='/reportes', los endpoints
-# quedarán expuestos bajo la ruta base de la API: '/api/reportes'
 app.include_router(reportes_router, prefix="/api")
 
-
-@app.get(
-    "/",
-    tags=["General"],
-    summary="Raíz de la API"
-)
+@app.get("/", tags=["General"], summary="Raíz de la API")
 def raiz():
     return {
         "plataforma": "Reportes de Infraestructura Universitaria",
@@ -140,12 +177,7 @@ def raiz():
         "endpoints_base": "/api/reportes"
     }
 
-
-@app.get(
-    "/health",
-    tags=["General"],
-    summary="Estado de Salud (Healthcheck)"
-)
+@app.get("/health", tags=["General"], summary="Estado de Salud (Healthcheck)")
 def verificar_salud():
     estado_redis = "inactivo"
     try:
@@ -160,7 +192,6 @@ def verificar_salud():
         "persistencia": "en_memoria (modo académico)",
         "redis": estado_redis
     }
-
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=settings.PORT, reload=True)
