@@ -56,6 +56,7 @@ app = FastAPI(
 )
 
 
+
 # =========================================================================
 # 🛡️ INYECCIÓN DE CABECERAS DE SEGURIDAD (HTTP Security Headers)
 # =========================================================================
@@ -165,8 +166,9 @@ async def global_unexpected_exception_handler(request: Request, exc: Exception):
 def custom_openapi():
     """
     Función para sobrescribir el esquema OpenAPI autogenerado de FastAPI.
-    Inyecta de forma segura el esquema BearerAuth en la sección components
-    para habilitar el botón "Authorize" en Swagger UI.
+    Inyecta de forma segura el esquema OAuth2PasswordBearer en la sección components
+    para habilitar el botón "Authorize" en Swagger UI y vincular la autenticación
+    al endpoint de inicio de sesión (/api/auth/login).
     """
     if app.openapi_schema:
         return app.openapi_schema
@@ -182,17 +184,19 @@ def custom_openapi():
     if "components" not in openapi_schema:
         openapi_schema["components"] = {}
         
-    # Inyectar la configuración de seguridad Bearer JWT
+    # Inyectar la configuración de seguridad Bearer JWT con flujo de contraseña OAuth2
     openapi_schema["components"]["securitySchemes"] = {
-        "BearerAuth": {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-            "description": "Ingresa el token JWT en el formato: Bearer <TOKEN>"
+        "OAuth2PasswordBearer": {
+            "type": "oauth2",
+            "flows": {
+                "password": {
+                    "tokenUrl": "/api/auth/login",
+                    "scopes": {}
+                }
+            }
         }
     }
     
-    # Asignar la seguridad de forma opcional (puede aplicarse individualmente en los endpoints)
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 

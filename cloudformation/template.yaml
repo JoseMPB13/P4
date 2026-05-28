@@ -1,0 +1,91 @@
+# cloudformation/template.yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Plantilla de AWS CloudFormation para el backend de "Reportes de Infraestructura Universitaria".
+  Declara los recursos necesarios para el almacenamiento de archivos adjuntos, auditoría de eventos
+  e integración de parámetros de configuración, con compatibilidad para entornos locales en LocalStack.
+
+Parameters:
+  Ambiente:
+    Type: String
+    Default: development
+    AllowedValues:
+      - development
+      - production
+    Description: >
+      Define el entorno de despliegue de la infraestructura escolar.
+      Permite segregar y nombrar lógicamente los recursos físicos para desarrollo o producción.
+
+Resources:
+  # =========================================================================
+  # 1. BUCKET S3 PARA ADJUNTOS DE REPORTES
+  # =========================================================================
+  ReportesAdjuntosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Nombre descriptivo parametrizado por el ambiente de ejecución
+      BucketName: !Sub "infraestructura-reportes-adjuntos-${Ambiente}"
+      # Habilitar el versionado del bucket
+      # Explicación académica: El versionado garantiza que cualquier imagen subida como prueba
+      # de una falla (ej. fuga de agua, cables expuestos) esté protegida contra borrados accidentales
+      # o sobreescrituras malintencionadas, manteniendo un registro histórico completo de estados del archivo.
+      VersioningConfiguration:
+        Status: Enabled
+      # Configuración de cifrado por defecto en el lado del servidor para proteger los datos en reposo
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # =========================================================================
+  # 2. TABLA DYNAMODB PARA AUDITORÍA DE EVENTOS EN TIEMPO REAL
+  # =========================================================================
+  ReportesAuditoriaTabla:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      # Nombre de la tabla parametrizado por el ambiente
+      TableName: !Sub "infraestructura-reportes-auditoria-${Ambiente}"
+      # Definición de las claves primarias de la tabla
+      # eventId (String): Clave de Partición (Hash Key) para distribuir los registros en las particiones físicas.
+      # timestamp (String): Clave de Ordenación (Range Key) para ordenar cronológicamente los eventos de una misma partición.
+      AttributeDefinitions:
+        - AttributeName: eventId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: eventId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      # Modo de facturación bajo demanda (PAY_PER_REQUEST)
+      # Explicación académica: Elimina la necesidad de aprovisionar capacidad de lectura y escritura fija (RCU/WCU).
+      # Es ideal para entornos escolares o de pruebas simuladas en LocalStack, ya que no genera costos
+      # cuando la base de datos se encuentra inactiva, y escala automáticamente ante picos de uso.
+      BillingMode: PAY_PER_REQUEST
+
+  # =========================================================================
+  # 3. PARÁMETRO EN EL SSM PARAMETER STORE PARA LA URL DE LA API
+  # =========================================================================
+  ApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      # Ruta jerárquica del parámetro en el almacén de configuración de AWS Systems Manager (SSM)
+      Name: !Sub "/infraestructura/${Ambiente}/api-url"
+      Type: String
+      # URL base del backend del sistema escolar (valor por defecto modificable tras el despliegue)
+      Value: "https://api.infraestructura-universitaria.local"
+      Description: !Sub "URL base de la API de Reportes de Infraestructura para el entorno de ${Ambiente}"
+
+Outputs:
+  BucketArn:
+    Description: ARN del Bucket S3 de reportes adjuntos.
+    Value: !GetAtt ReportesAdjuntosBucket.Arn
+
+  DynamoDbTableArn:
+    Description: ARN de la Tabla DynamoDB de auditoría de reportes.
+    Value: !GetAtt ReportesAuditoriaTabla.Arn
+
+  SSMParameterName:
+    Description: Nombre del parámetro almacenado en SSM Parameter Store.
+    Value: !Ref ApiUrlParameter
