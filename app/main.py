@@ -26,7 +26,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.core.config import settings
@@ -85,7 +85,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         status_code=exc.status_code,
         content={
             "error": exc.detail,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "ruta": request.url.path
         }
     )
@@ -105,7 +105,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "error": f"Error de validación: {error_unificado}",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "ruta": request.url.path
         }
     )
@@ -117,7 +117,7 @@ async def global_unexpected_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": f"Error interno en el servidor: {str(exc)}",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "ruta": request.url.path
         }
     )
@@ -189,7 +189,7 @@ def verificar_salud():
 
     return {
         "estado_api": "saludable",
-        "persistencia": "en_memoria (modo académico)",
+        "persistencia": "PostgreSQL (SQLAlchemy)",
         "redis": estado_redis
     }
 

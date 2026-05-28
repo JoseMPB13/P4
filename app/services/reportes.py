@@ -1,19 +1,21 @@
 # app/services/reportes.py
 """
 Capa de Servicio (Lógica de Negocio).
-Responsabilidad: Implementar las reglas de negocio de los Reportes.
-Mapea las peticiones con los modelos relacionales y controla la base de datos temporal.
+Responsabilidad: Implementar las reglas de negocio de los Reportes de Infraestructura.
+Mapea las peticiones con los modelos relacionales (SQLAlchemy) e interactúa con la
+base de datos física en Supabase utilizando la sesión activa de BD.
 
 Esta versión integra la publicación asíncrona de eventos utilizando Redis Pub/Sub
 a través de Upstash. Los eventos se publican en canales específicos cada vez que
-se crea o modifica un reporte.
+se crea o modifica un reporte en la base de datos relacional de forma exitosa.
 """
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.models.reporte import ReporteModel
 from app.schemas.reporte import ReporteCreate, ReporteUpdate
@@ -24,62 +26,61 @@ logger = logging.getLogger(__name__)
 class ReporteService:
     """
     Servicio encargado del procesamiento operacional de Reportes.
-    Implementa publicación de eventos estructurados sobre Redis para mensajería en tiempo real.
+    Traduce operaciones de negocio en consultas ORM a través de SQLAlchemy y maneja la
+    publicación de eventos estructurados sobre Redis para mensajería en tiempo real.
     """
-    
-    # Persistencia temporal privada
-    _reportes: List[ReporteModel] = []
-    _next_id: int = 1
 
-    @classmethod
-    def listar_todos(cls) -> List[ReporteModel]:
+    @staticmethod
+    def listar_todos(db: Session) -> List[ReporteModel]:
         """
-        Retorna la lista de reportes registrados.
+        Retorna la lista de todos los reportes registrados en la base de datos relacional.
         """
-        logger.info("Servicio: Listando todos los reportes.")
-        return cls._reportes
+        logger.info("Servicio: Listando todos los reportes desde la base de datos.")
+        return db.query(ReporteModel).all()
 
-    @classmethod
-    def obtener_por_id(cls, id: int) -> ReporteModel:
+    @staticmethod
+    def obtener_por_id(db: Session, id: int) -> ReporteModel:
         """
-        Busca un reporte por ID y lanza HTTPException 404 si no existe.
+        Busca un reporte por su ID único en la base de datos y lanza HTTPException 404 si no existe.
         """
-        logger.info(f"Servicio: Buscando reporte con ID: {id}.")
-        for reporte in cls._reportes:
-            if reporte.id == id:
-                return reporte
+        logger.info(f"Servicio: Buscando reporte con ID: {id} en la base de datos.")
+        reporte = db.query(ReporteModel).filter(ReporteModel.id == id).first()
         
-        logger.warning(f"Servicio: Reporte con ID {id} no fue encontrado.")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Reporte {id} no encontrado"
-        )
+        if not reporte:
+            logger.warning(f"Servicio: Reporte con ID {id} no fue encontrado.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Reporte {id} no encontrado"
+            )
+        return reporte
 
-    @classmethod
-    def crear(cls, reporte_en: ReporteCreate) -> ReporteModel:
+    @staticmethod
+    def crear(db: Session, reporte_en: ReporteCreate) -> ReporteModel:
         """
-        Registra un reporte en memoria y publica un evento en el canal 'infra:reporte:creado'.
+        Registra un reporte en la base de datos física y publica un evento en el canal 'infra:reporte:creado'.
+        Usa datetime.now(timezone.utc) estándar moderno de Python para evitar la deprecación de utcnow.
         """
+        # Instanciar el modelo ORM mapeado con la estructura relacional
         nuevo_reporte = ReporteModel(
-            id=cls._next_id,
             titulo=reporte_en.titulo,
             descripcion=reporte_en.descripcion,
             tipo_problema=reporte_en.tipo_problema,
             ubicacion=reporte_en.ubicacion,
             imagen_url=reporte_en.imagen_url,
-            prioridad="media",
-            estado="pendiente",
-            creado_en=datetime.utcnow()
+            prioridad="media", # Prioridad por defecto requerida por las reglas de negocio
+            estado="pendiente", # Estado inicial predeterminado
+            creado_en=datetime.now(timezone.utc)
         )
         
-        # Guardar en memoria
-        cls._reportes.append(nuevo_reporte)
-        cls._next_id += 1
+        # Persistencia relacional transaccional
+        db.add(nuevo_reporte)
+        db.commit()
+        db.refresh(nuevo_reporte) # Recupera el ID autoincremental generado por la base de datos
         
-        logger.info(f"Servicio: Reporte creado exitosamente en memoria con ID: {nuevo_reporte.id}")
+        logger.info(f"Servicio: Reporte creado exitosamente en base de datos con ID: {nuevo_reporte.id}")
 
         # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        # Definimos el canal de destino
+        # Definimos el canal de destino para la mensajería asíncrona
         canal = "infra:reporte:creado"
         
         # Estructuramos el payload del reporte a un formato serializable
@@ -99,7 +100,7 @@ class ReporteService:
         mensaje = {
             "tipo": "reporte:creado",
             "payload": payload_datos,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "version": "1.0.0"
         }
 
@@ -109,18 +110,18 @@ class ReporteService:
             redis_client.publish(canal, json.dumps(mensaje))
             logger.info(f"Servicio: Evento 'reporte:creado' publicado en el canal '{canal}'.")
         except Exception as err:
-            # La falla de mensajería no debe abortar la transacción de negocio local (principio de resiliencia)
+            # Resiliencia: La falla de mensajería externa no aborta la transacción principal
             logger.error(f"Servicio: No se pudo publicar el evento en Redis: {err}")
             
         return nuevo_reporte
 
-    @classmethod
-    def actualizar(cls, id: int, reporte_en: ReporteUpdate) -> ReporteModel:
+    @staticmethod
+    def actualizar(db: Session, id: int, reporte_en: ReporteUpdate) -> ReporteModel:
         """
-        Modifica un reporte y publica un evento en el canal 'infra:reporte:actualizado'.
+        Modifica los campos permitidos del reporte y publica un evento en 'infra:reporte:actualizado'.
         """
-        # Buscar el reporte; si no existe, lanza 404 automáticamente
-        reporte = cls.obtener_por_id(id)
+        # Buscar el reporte; si no existe, lanza 404 automáticamente en obtener_por_id
+        reporte = ReporteService.obtener_por_id(db, id)
         
         # Aplicar modificaciones parciales si están presentes en la petición
         if reporte_en.prioridad is not None:
@@ -128,7 +129,11 @@ class ReporteService:
         if reporte_en.estado is not None:
             reporte.estado = reporte_en.estado
             
-        logger.info(f"Servicio: Reporte ID {id} actualizado en memoria.")
+        # Guardar cambios y refrescar el estado del objeto ORM
+        db.commit()
+        db.refresh(reporte)
+        
+        logger.info(f"Servicio: Reporte ID {id} actualizado en base de datos.")
 
         # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
         canal = "infra:reporte:actualizado"
@@ -150,7 +155,7 @@ class ReporteService:
         mensaje = {
             "tipo": "reporte:actualizado",
             "payload": payload_datos,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "version": "1.0.0"
         }
 
@@ -163,20 +168,16 @@ class ReporteService:
             
         return reporte
 
-    @classmethod
-    def eliminar(cls, id: int) -> bool:
+    @staticmethod
+    def eliminar(db: Session, id: int) -> bool:
         """
-        Elimina un reporte en memoria. Si no existe, lanza 404.
+        Elimina físicamente un reporte de la base de datos. Si no existe, lanza 404.
         """
         # Validar existencia (lanza 404 si no existe)
-        cls.obtener_por_id(id)
+        reporte = ReporteService.obtener_por_id(db, id)
         
-        for indice, reporte in enumerate(cls._reportes):
-            if reporte.id == id:
-                cls._reportes.pop(indice)
-                logger.info(f"Servicio: Reporte ID {id} eliminado de memoria.")
-                
-                # Opcional: publicar evento de eliminación si se requiere a futuro.
-                return True
-                
-        return False
+        db.delete(reporte)
+        db.commit()
+        
+        logger.info(f"Servicio: Reporte ID {id} eliminado físicamente de la base de datos.")
+        return True

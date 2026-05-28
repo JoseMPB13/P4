@@ -12,7 +12,7 @@ Reglas del negocio académica:
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
@@ -70,7 +70,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={
                         "error": "Demasiadas peticiones desde esta IP.",
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "ruta": ruta
                     }
                 )

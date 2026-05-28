@@ -9,7 +9,7 @@ Este archivo incluye comentarios detallados sobre cada columna y propiedad
 para servir de material de estudio y referencia académica.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base
 
@@ -56,9 +56,8 @@ class ReporteModel(Base):
     # default="pendiente" asegura que todo nuevo reporte inicie en este estado. No nulo.
     estado = Column(String(20), default="pendiente", nullable=False)
 
-    # creado_en: Registra el momento exacto de la inserción.
-    # default=datetime.utcnow asigna la hora UTC actual cuando se instancia el objeto (sin paréntesis, para que se evalúe al insertar).
-    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # default=lambda: datetime.now(timezone.utc) asigna la hora UTC actual cuando se instancia el objeto.
+    creado_en = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     def __repr__(self) -> str:
         """
