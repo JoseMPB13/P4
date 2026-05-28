@@ -31,6 +31,7 @@ import logging
 
 from app.core.config import settings
 from app.api.endpoints.reportes import router as reportes_router
+from app.api.endpoints.auth import router as auth_router
 from app.redis.client import get_redis_client
 # Importación del middleware personalizado de control de frecuencia
 from app.middlewares.rate_limit import RateLimitMiddleware
@@ -168,6 +169,7 @@ app.openapi = custom_openapi
 # =========================================================================
 
 app.include_router(reportes_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 @app.get("/", tags=["General"], summary="Raíz de la API")
 def raiz():

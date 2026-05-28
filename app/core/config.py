@@ -31,6 +31,21 @@ class Settings(BaseSettings):
         default="redis://default:PENDIENTE@PENDIENTE:6379"
     )
 
+    # Clave secreta para firmar tokens JWT (académica)
+    JWT_SECRET: str = Field(
+        default="supersecret_jwt_key_academic_level_2026"
+    )
+
+    # Algoritmo de firma digital para JWT
+    JWT_ALGORITHM: str = Field(
+        default="HS256"
+    )
+
+    # Tiempo de expiración del token de acceso (en minutos)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=60
+    )
+
     # Configuración para que Pydantic lea el archivo .env desde la raíz del proyecto
     model_config = SettingsConfigDict(
         env_file=".env",
