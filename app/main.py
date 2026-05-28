@@ -55,9 +55,44 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+
+# =========================================================================
+# 🛡️ INYECCIÓN DE CABECERAS DE SEGURIDAD (HTTP Security Headers)
+# =========================================================================
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Middleware HTTP nativo asíncrono que inyecta cabeceras web de seguridad (equivalente a Helmet)
+    en cada una de las respuestas HTTP salientes de la API.
+
+    Explicación académica de cada cabecera inyectada:
+    --------------------------------------------------
+    1. X-Frame-Options (DENY): Evita que la plataforma sea embebida en <iframe>. Esto mitiga 
+       los ataques de 'Clickjacking', donde un atacante superpone un marco invisible para engañar al usuario.
+    2. X-Content-Type-Options (nosniff): Evita la autodetección (sniffing) de tipos MIME por parte
+       del navegador, forzándolo a seguir el tipo declarado en Content-Type. Evita inyecciones de código.
+    3. X-XSS-Protection (1; mode=block): Activa de forma estricta los filtros incorporados contra XSS
+       en navegadores heredados, bloqueando la carga si se identifica código malicioso.
+    4. Content-Security-Policy (CSP): Define un origen de confianza exclusivo para la carga y ejecución
+       de scripts y estilos, mitigando ataques de Cross-Site Scripting (XSS) y Clickjacking.
+    5. Strict-Transport-Security (HSTS): Fuerza el uso de conexiones HTTPS durante 1 año (31536000 s),
+       previniendo ataques Man-in-the-Middle y degradación de seguridad (SSL Stripping).
+    """
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+    )
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 # =========================================================================
 # 🛡️ REGISTRO DE MIDDLEWARES (Orden Inverso de Declaración)
 # =========================================================================
+
 
 # 1. Agregamos el Rate Limiting (más interno que CORS)
 app.add_middleware(RateLimitMiddleware)
