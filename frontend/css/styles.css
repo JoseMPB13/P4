@@ -1,0 +1,216 @@
+/* =========================================================================
+   🎨 SISTEMA DE DISEÑO Y CONFIGURACIÓN GLOBAL
+   ========================================================================= */
+
+:root {
+    --upds-navy: #0F2C59;
+    --upds-navy-dark: #071933;
+    --upds-navy-light: #EBF1FA;
+    --upds-gold: #FFC436;
+    --upds-gold-hover: #E5B02E;
+    --upds-white: #FFFFFF;
+    --upds-light: #F8F9FA;
+    --upds-gray: #6C757D;
+    
+    --font-heading: 'Outfit', 'Inter', sans-serif;
+    --font-body: 'Inter', sans-serif;
+}
+
+body {
+    font-family: var(--font-body);
+    background-color: #F3F4F6;
+    color: #333333;
+    overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-font {
+    font-family: var(--font-heading);
+}
+
+/* =========================================================================
+   🧩 COMPONENTES E INTENSIDAD DE COLORES
+   ========================================================================= */
+
+.bg-navy {
+    background-color: var(--upds-navy) !important;
+}
+
+.text-navy {
+    color: var(--upds-navy) !important;
+}
+
+.btn-navy {
+    background-color: var(--upds-navy);
+    color: var(--upds-white);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-navy:hover {
+    background-color: var(--upds-navy-dark);
+    color: var(--upds-white);
+    transform: translateY(-1px);
+}
+
+.btn-warning-gold {
+    background-color: var(--upds-gold);
+    color: var(--upds-navy-dark);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-warning-gold:hover {
+    background-color: var(--upds-gold-hover);
+    color: var(--upds-navy-dark);
+    transform: translateY(-2px);
+}
+
+.text-warning-gold {
+    color: var(--upds-gold) !important;
+}
+
+.bg-navy-light {
+    background-color: var(--upds-navy-light) !important;
+}
+
+.bg-warning-light {
+    background-color: #FFF9E6;
+}
+
+.bg-success-light {
+    background-color: #E6F4EA;
+}
+
+/* =========================================================================
+   🚀 SECCIÓN HERO
+   ========================================================================= */
+
+.hero-section {
+    background: linear-gradient(135deg, var(--upds-navy) 0%, var(--upds-navy-dark) 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -20%;
+    width: 60%;
+    height: 120%;
+    background: radial-gradient(circle, rgba(255, 196, 54, 0.08) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+.fw-extrabold {
+    font-weight: 800;
+}
+
+.text-white-80 {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.text-white-70 {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.text-white-60 {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.tracking-wide {
+    letter-spacing: 0.5px;
+}
+
+/* =========================================================================
+   ✨ GLASSMORPHISM / CONTENEDORES GLASS
+   ========================================================================= */
+
+.bg-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bg-glass-dark {
+    background: rgba(15, 44, 89, 0.4);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* =========================================================================
+   📦 TARJETAS E INTERACCIONES
+   ========================================================================= */
+
+.hover-translate {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-translate:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.1) !important;
+}
+
+.icon-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.divider {
+    width: 60px;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.max-w-700 {
+    max-w: 700px;
+}
+
+/* =========================================================================
+   🔄 ANIMACIONES MICRO-INTERACTIVAS
+   ========================================================================= */
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 3s infinite ease-in-out;
+}
+
+/* =========================================================================
+   📑 NAV-PILLS & TABS MODAL
+   ========================================================================= */
+
+.modal-content {
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+
+.nav-pills .nav-link {
+    color: var(--upds-navy);
+    background-color: transparent;
+    transition: all 0.3s ease;
+}
+
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link {
+    color: var(--upds-navy-dark);
+    background-color: var(--upds-gold);
+    box-shadow: 0 4px 10px rgba(255, 196, 54, 0.2);
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--upds-navy);
+    box-shadow: 0 0 0 0.25rem rgba(15, 44, 89, 0.15);
+}

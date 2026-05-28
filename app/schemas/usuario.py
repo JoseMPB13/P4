@@ -34,14 +34,17 @@ class UsuarioCreate(UsuarioBase):
         description="Contraseña en texto plano para el registro de la cuenta (mínimo 6 caracteres)",
         examples=["secreto123"]
     )
+    rol: str = Field(
+        default="estudiante",
+        description="Rol del usuario para el control de accesos RBAC ('estudiante', 'personal_mantenimiento', 'admin')",
+        examples=["estudiante"]
+    )
 
     @field_validator("password")
     @classmethod
     def validar_longitud_password(cls, valor: str) -> str:
         """
         Validador personalizado para garantizar la complejidad mínima de la contraseña.
-        Explicación académica: Se evalúa que la contraseña no contenga solo espacios y cumpla
-        con una longitud mínima de 6 caracteres para mitigar ataques de fuerza bruta simples.
         """
         if not valor or len(valor.strip()) < 6:
             raise ValueError("La contraseña debe tener como mínimo 6 caracteres válidos.")
@@ -56,6 +59,17 @@ class UsuarioCreate(UsuarioBase):
         if not valor or not valor.strip():
             raise ValueError("El nombre es obligatorio y no puede estar en blanco.")
         return valor.strip()
+
+    @field_validator("rol")
+    @classmethod
+    def validar_rol_permitido(cls, valor: str) -> str:
+        """
+        Validador que restringe el rol a los valores definidos en la restricción CHECK.
+        """
+        roles_validos = ["estudiante", "personal_mantenimiento", "admin"]
+        if valor not in roles_validos:
+            raise ValueError(f"El rol debe ser uno de los siguientes: {', '.join(roles_validos)}")
+        return valor
 
 class UsuarioLogin(BaseModel):
     """
@@ -80,9 +94,11 @@ class UsuarioResponse(BaseModel):
     id: int = Field(..., description="Identificador único autoincremental del usuario")
     email: EmailStr = Field(..., description="Correo electrónico institucional")
     nombre: str = Field(..., description="Nombre completo")
+    rol: str = Field(..., description="Rol actual del usuario en la plataforma")
 
     # Configuración de Pydantic v2 para permitir el mapeo de atributos del modelo ORM de SQLAlchemy.
     model_config = ConfigDict(from_attributes=True)
+
 
 class Token(BaseModel):
     """

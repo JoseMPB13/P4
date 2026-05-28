@@ -10,38 +10,58 @@ estructura y propiedades físicas de las columnas.
 """
 
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
 from app.models.reporte import Base
 
 class UsuarioModel(Base):
     """
     Representación relacional de la tabla 'usuarios'.
-    Contiene la información de identificación, nombre y credenciales
-    encriptadas (hashed_password) de los usuarios habilitados en el sistema.
+    Contiene la información de identificación, nombre, credenciales
+    encriptadas (hashed_password) y rol del usuario para el control de accesos RBAC.
     """
     
     # Nombre exacto de la tabla física en la base de datos relacional
     __tablename__ = "usuarios"
 
     # id: Clave primaria autoincremental de tipo entero.
-    # index=True agiliza las búsquedas cuando se referencia por el identificador interno.
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # email: Correo electrónico del usuario.
-    # String(100): Límite de 100 caracteres.
-    # unique=True: Garantiza a nivel de base de datos que no haya dos usuarios con el mismo correo.
-    # index=True: Crea un índice específico para acelerar las consultas de inicio de sesión y autenticación.
-    # nullable=False: Campo requerido obligatorio.
     email = Column(String(100), unique=True, index=True, nullable=False)
 
     # hashed_password: Contraseña del usuario almacenada de forma segura.
-    # String(255): Espacio de 255 caracteres para albergar el hash generado por bcrypt.
-    # nullable=False: Obligatorio para garantizar la seguridad del acceso.
     hashed_password = Column(String(255), nullable=False)
 
     # nombre: Nombre completo o apodo del usuario.
-    # String(100): Longitud máxima recomendada de 100 caracteres.
-    # nullable=False: Campo obligatorio.
     nombre = Column(String(100), nullable=False)
+
+    # rol: Rol asignado para el control de accesos basado en roles (RBAC).
+    # Valores permitidos a nivel de Check Constraint: 'estudiante', 'personal_mantenimiento', 'admin'.
+    rol = Column(String(30), default="estudiante", nullable=False)
+
+    # =========================================================================
+    # 🔗 RELACIONES DE SQLALCHEMY (Relationships)
+    # =========================================================================
+    # Relación bidireccional hacia ReporteModel (Reportes creados por el estudiante)
+    reportes_creados = relationship(
+        "ReporteModel", 
+        back_populates="usuario", 
+        foreign_keys="[ReporteModel.usuario_id]"
+    )
+
+    # Relación bidireccional hacia ReporteModel (Reportes asignados al técnico)
+    reportes_asignados = relationship(
+        "ReporteModel", 
+        back_populates="tecnico", 
+        foreign_keys="[ReporteModel.asignado_a]"
+    )
+
+    # Relación bidireccional hacia ComentarioModel
+    comentarios = relationship(
+        "ComentarioModel", 
+        back_populates="usuario"
+    )
+
 
     def __repr__(self) -> str:
         """

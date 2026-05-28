@@ -69,7 +69,9 @@ class ReporteService:
             imagen_url=reporte_en.imagen_url,
             prioridad="media", # Prioridad por defecto requerida por las reglas de negocio
             estado="pendiente", # Estado inicial predeterminado
-            creado_en=datetime.now(timezone.utc)
+            creado_en=datetime.now(timezone.utc),
+            usuario_id=reporte_en.usuario_id,
+            asignado_a=reporte_en.asignado_a
         )
         
         # Persistencia relacional transaccional
@@ -93,7 +95,9 @@ class ReporteService:
             "imagen_url": nuevo_reporte.imagen_url,
             "prioridad": nuevo_reporte.prioridad,
             "estado": nuevo_reporte.estado,
-            "creado_en": nuevo_reporte.creado_en.isoformat()
+            "creado_en": nuevo_reporte.creado_en.isoformat(),
+            "usuario_id": nuevo_reporte.usuario_id,
+            "asignado_a": nuevo_reporte.asignado_a
         }
 
         # Estructuramos el sobre del evento según las Reglas de Oro de Mensajería
@@ -128,6 +132,8 @@ class ReporteService:
             reporte.prioridad = reporte_en.prioridad
         if reporte_en.estado is not None:
             reporte.estado = reporte_en.estado
+        if reporte_en.asignado_a is not None:
+            reporte.asignado_a = reporte_en.asignado_a
             
         # Guardar cambios y refrescar el estado del objeto ORM
         db.commit()

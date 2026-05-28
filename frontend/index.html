@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes de Infraestructura UPDS - Portal de Mantenimiento</title>
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- =========================================================================
+         🛡️ BARRA DE NAVEGACIÓN SUPERIOR (NAVBAR)
+         ========================================================================= -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-navy shadow-sm py-3">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2 brand-font" href="#">
+                <i class="bi bi-building-fill-gear text-warning fs-3"></i>
+                <span class="fw-bold tracking-wide">UPDS <span class="fw-light text-warning-gold">Infraestructura</span></span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-2 mt-3 mt-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#"><i class="bi bi-house-door-fill me-1"></i> Inicio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#proposito"><i class="bi bi-info-circle-fill me-1"></i> Propósito</a>
+                    </li>
+                    <li class="nav-item ms-lg-3">
+                        <button class="btn btn-warning-gold text-navy fw-semibold px-4 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#authModal">
+                            <i class="bi bi-person-fill-lock me-1"></i> Acceder / Registrarse
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- =========================================================================
+         🚀 SECCIÓN DE BIENVENIDA (HERO SECTION)
+         ========================================================================= -->
+    <header class="hero-section py-5 text-white">
+        <div class="container py-5">
+            <div class="row align-items-center g-5">
+                <div class="col-lg-6">
+                    <span class="badge bg-warning text-navy mb-3 px-3 py-2 rounded-pill fw-bold text-uppercase tracking-wider">Reportes en Tiempo Real</span>
+                    <h1 class="display-4 fw-extrabold text-white mb-3 text-shadow main-title">Reporta fallas, mejora tu campus.</h1>
+                    <p class="lead text-white-80 mb-4 fs-5 font-inter">
+                        La plataforma centralizada para el reporte y seguimiento de incidencias físicas de infraestructura en la Universidad Privada Domingo Savio. Colabora de forma directa con nuestro personal de soporte técnico.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <button class="btn btn-warning-gold text-navy btn-lg fw-semibold px-4 py-3 rounded-pill shadow" data-bs-toggle="modal" data-bs-target="#authModal">
+                            <i class="bi bi-plus-circle-fill me-2"></i> Crear Nuevo Reporte
+                        </button>
+                        <a href="#proposito" class="btn btn-outline-light btn-lg fw-semibold px-4 py-3 rounded-pill border-2">
+                            Conocer Más <i class="bi bi-arrow-right-short ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-6 text-center">
+                    <div class="hero-image-wrapper p-4 bg-glass-dark rounded-4 shadow-lg border border-glass">
+                        <i class="bi bi-cone-striped display-1 text-warning animate-pulse mb-3 d-inline-block"></i>
+                        <h3 class="fw-bold mb-2">Estado del Campus</h3>
+                        <p class="text-white-70 fs-6">
+                            Estadísticas agregadas de incidencias reportadas, en atención y solucionadas. Inicia sesión para ver el tablero técnico.
+                        </p>
+                        <div class="row g-3 mt-2">
+                            <div class="col-4">
+                                <div class="p-3 bg-glass rounded-3 text-center">
+                                    <div class="h2 fw-bold text-warning mb-0" id="stats-total">0</div>
+                                    <small class="text-white-60">Creados</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-3 bg-glass rounded-3 text-center">
+                                    <div class="h2 fw-bold text-info mb-0" id="stats-proceso">0</div>
+                                    <small class="text-white-60">En Curso</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-3 bg-glass rounded-3 text-center">
+                                    <div class="h2 fw-bold text-success mb-0" id="stats-resuelto">0</div>
+                                    <small class="text-white-60">Resueltos</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- =========================================================================
+         📋 SECCIÓN DE PROPÓSITO E INFORMACIÓN
+         ========================================================================= -->
+    <main class="py-5" id="proposito">
+        <div class="container py-4">
+            <div class="text-center max-w-700 mx-auto mb-5">
+                <h2 class="section-title fw-bold text-navy mb-3">Comprometidos con la Excelencia de la Infraestructura</h2>
+                <div class="divider bg-warning mx-auto mb-4"></div>
+                <p class="text-muted font-inter">
+                    Nuestra misión es asegurar un entorno académico óptimo, seguro y plenamente funcional para toda la comunidad universitaria de la UPDS.
+                </p>
+            </div>
+
+            <div class="row g-4">
+                <!-- Tarjeta 1: Reportes Sencillos -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm p-4 hover-translate rounded-4">
+                        <div class="card-body">
+                            <div class="icon-circle bg-navy-light text-navy mb-4">
+                                <i class="bi bi-megaphone-fill fs-3"></i>
+                            </div>
+                            <h4 class="card-title fw-bold text-navy mb-3">Reporte Rápido</h4>
+                            <p class="card-text text-muted font-inter">
+                                Los estudiantes pueden registrar fallas físicas como goteras, luminarias dañadas o problemas de red en menos de dos minutos.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarjeta 2: Notificaciones en Vivo -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm p-4 hover-translate rounded-4">
+                        <div class="card-body">
+                            <div class="icon-circle bg-warning-light text-warning-gold mb-4">
+                                <i class="bi bi-lightning-charge-fill fs-3"></i>
+                            </div>
+                            <h4 class="card-title fw-bold text-navy mb-3">Notificación Activa</h4>
+                            <p class="card-text text-muted font-inter">
+                                Gracias a la integración con Redis Pub/Sub, los eventos de creación y cambio de estado se distribuyen asíncronamente en tiempo real.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarjeta 3: Gestión y Control -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm p-4 hover-translate rounded-4">
+                        <div class="card-body">
+                            <div class="icon-circle bg-success-light text-success mb-4">
+                                <i class="bi bi-shield-fill-check fs-3"></i>
+                            </div>
+                            <h4 class="card-title fw-bold text-navy mb-3">Resolución Eficiente</h4>
+                            <p class="card-text text-muted font-inter">
+                                El personal de mantenimiento técnico cuenta con un flujo estructurado para asignar reportes y registrar avances con comentarios trazables.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- =========================================================================
+         🛡️ MODAL DE AUTENTICACIÓN (TABS: ACCEDER / REGISTRARSE)
+         ========================================================================= -->
+    <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header border-0 pb-0 justify-content-end">
+                    <button type="button" class="btn-close shadow-none" data-bs-close="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body px-4 pb-4 pt-2">
+                    <!-- Nav Tabs para alternar entre Login y Register -->
+                    <ul class="nav nav-pills nav-fill bg-light p-1 rounded-pill mb-4" id="authTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active rounded-pill fw-semibold py-2" id="login-tab" data-bs-toggle="tab" data-bs-target="#login-panel" type="button" role="tab" aria-controls="login-panel" aria-selected="true">
+                                Iniciar Sesión
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill fw-semibold py-2" id="register-tab" data-bs-toggle="tab" data-bs-target="#register-panel" type="button" role="tab" aria-controls="register-panel" aria-selected="false">
+                                Registrarse
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="authTabContent">
+                        <!-- Panel 1: Login -->
+                        <div class="tab-pane fade show active" id="login-panel" role="tabpanel" aria-labelledby="login-tab">
+                            <div class="text-center mb-4">
+                                <h3 class="fw-bold text-navy">¡Bienvenido de nuevo!</h3>
+                                <p class="text-muted fs-6">Ingresa tus credenciales institucionales</p>
+                            </div>
+                            <form id="login-form" novalidate>
+                                <div class="mb-3">
+                                    <label for="login-email" class="form-label fw-semibold text-navy">Correo Electrónico</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-envelope"></i></span>
+                                        <input type="email" class="form-control bg-light border-start-0 ps-0" id="login-email" required placeholder="nombre@universidad.edu">
+                                    </div>
+                                    <div class="invalid-feedback">Por favor ingresa un correo electrónico institucional válido.</div>
+                                </div>
+                                <div class="mb-4">
+                                    <label for="login-password" class="form-label fw-semibold text-navy">Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-lock"></i></span>
+                                        <input type="password" class="form-control bg-light border-start-0 ps-0" id="login-password" required placeholder="••••••••" minlength="6">
+                                    </div>
+                                    <div class="invalid-feedback">La contraseña debe tener al menos 6 caracteres.</div>
+                                </div>
+                                <button type="submit" class="btn btn-navy w-100 py-2.5 rounded-pill fw-semibold shadow-sm mb-3">
+                                    <span class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true" id="login-spinner"></span>
+                                    Acceder <i class="bi bi-arrow-right ms-1"></i>
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Panel 2: Register -->
+                        <div class="tab-pane fade" id="register-panel" role="tabpanel" aria-labelledby="register-tab">
+                            <div class="text-center mb-4">
+                                <h3 class="fw-bold text-navy">Crea tu cuenta</h3>
+                                <p class="text-muted fs-6">Únete a la red de reportes de infraestructura</p>
+                            </div>
+                            <form id="register-form" novalidate>
+                                <div class="mb-3">
+                                    <label for="reg-nombre" class="form-label fw-semibold text-navy">Nombre Completo</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-person"></i></span>
+                                        <input type="text" class="form-control bg-light border-start-0 ps-0" id="reg-nombre" required placeholder="Ej. Juan Pérez">
+                                    </div>
+                                    <div class="invalid-feedback">El nombre completo es obligatorio.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="reg-email" class="form-label fw-semibold text-navy">Correo Electrónico</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-envelope"></i></span>
+                                        <input type="email" class="form-control bg-light border-start-0 ps-0" id="reg-email" required placeholder="usuario@universidad.edu.bo">
+                                    </div>
+                                    <div class="invalid-feedback">Ingresa un correo con formato válido.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="reg-password" class="form-label fw-semibold text-navy">Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-lock"></i></span>
+                                        <input type="password" class="form-control bg-light border-start-0 ps-0" id="reg-password" required placeholder="Mínimo 6 caracteres" minlength="6">
+                                    </div>
+                                    <div class="invalid-feedback">La contraseña debe tener mínimo 6 caracteres.</div>
+                                </div>
+                                <div class="mb-4">
+                                    <label for="reg-rol" class="form-label fw-semibold text-navy">Rol en la Plataforma</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-people"></i></span>
+                                        <select class="form-select bg-light border-start-0 ps-0" id="reg-rol" required>
+                                            <option value="estudiante" selected>Estudiante</option>
+                                            <option value="personal_mantenimiento">Personal de Mantenimiento</option>
+                                            <option value="admin">Administrador</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-navy w-100 py-2.5 rounded-pill fw-semibold shadow-sm mb-3">
+                                    <span class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true" id="reg-spinner"></span>
+                                    Registrar Cuenta <i class="bi bi-check-circle-fill ms-1"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor de notificaciones de alerta dentro del Modal -->
+                    <div id="auth-alert" class="alert d-none mt-3" role="alert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         ☕ FOOTER (PIE DE PÁGINA)
+         ========================================================================= -->
+    <footer class="bg-dark text-white-50 py-4 mt-5 border-top border-secondary">
+        <div class="container text-center">
+            <p class="mb-2">© 2026 Universidad Privada Domingo Savio (UPDS). Todos los derechos reservados.</p>
+            <small class="text-white-30">Desarrollado en base a estándares limpios con FastAPI, SQLAlchemy y Bootstrap 5</small>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle with Popper JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Custom JavaScript -->
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -48,6 +48,16 @@ class ReporteCreate(ReporteBase):
     Esquema utilizado para validar el payload al crear un reporte (POST).
     Hereda de ReporteBase, por lo que hereda todos sus campos obligatorios.
     """
+    usuario_id: int = Field(
+        ...,
+        description="Identificador del estudiante o usuario que crea el reporte",
+        examples=[1]
+    )
+    asignado_a: Optional[int] = Field(
+        None,
+        description="Identificador opcional del técnico de mantenimiento asignado",
+        examples=[2]
+    )
     
     # Validadores personalizados usando la sintaxis moderna de Pydantic V2 (@field_validator)
     @field_validator("titulo")
@@ -55,8 +65,6 @@ class ReporteCreate(ReporteBase):
     def validar_titulo_no_vacio(cls, valor: str) -> str:
         """
         Validador para asegurar que el título no esté vacío ni contenga solo espacios en blanco.
-        Explicación: .strip() elimina espacios al inicio y al final. Si la longitud resultante
-        es cero, significa que el campo venía vacío o con solo espacios.
         """
         if not valor or not valor.strip():
             raise ValueError("El título es obligatorio y no puede estar vacío ni contener solo espacios en blanco.")
@@ -78,7 +86,6 @@ class ReporteUpdate(BaseModel):
     Esquema utilizado para la actualización de un reporte (PUT / PATCH).
     Permite modificar opcionalmente los campos de prioridad y estado.
     """
-    # Ambos campos son opcionales (tienen valor por defecto None)
     prioridad: Optional[str] = Field(
         None,
         description="Prioridad asignada al reporte: baja, media, alta",
@@ -88,6 +95,11 @@ class ReporteUpdate(BaseModel):
         None,
         description="Estado del ciclo de vida del reporte: pendiente, en proceso, resuelto",
         examples=["en proceso"]
+    )
+    asignado_a: Optional[int] = Field(
+        None,
+        description="Asignar o reasignar el técnico de mantenimiento",
+        examples=[3]
     )
 
     # Validadores de contenido para asegurar valores permitidos (Simulación de enums)
@@ -127,6 +139,9 @@ class ReporteResponse(ReporteBase):
     prioridad: str = Field(..., description="Prioridad actual del reporte (baja, media, alta)")
     estado: str = Field(..., description="Estado actual de resolución del reporte")
     creado_en: datetime = Field(..., description="Fecha y hora exactas de creación del reporte en el servidor")
+    usuario_id: int = Field(..., description="Identificador del estudiante creador del reporte")
+    asignado_a: Optional[int] = Field(None, description="Identificador del técnico de mantenimiento asignado")
 
     # Configuración de Pydantic V2 para soportar la carga desde modelos ORM (como SQLAlchemy)
     model_config = ConfigDict(from_attributes=True)
+

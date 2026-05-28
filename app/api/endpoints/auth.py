@@ -54,7 +54,8 @@ def registrar_usuario(payload: UsuarioCreate, db: Session = Depends(get_db)):
     nuevo_usuario = UsuarioModel(
         email=payload.email,
         nombre=payload.nombre,
-        hashed_password=hashed_pass
+        hashed_password=hashed_pass,
+        rol=payload.rol
     )
     
     # 4. Guardar la entidad en la base de datos transaccionalmente
