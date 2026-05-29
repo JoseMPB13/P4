@@ -36,6 +36,8 @@ logging.basicConfig(
 logger = logging.getLogger("subscriber")
 
 # 1. Cargar las variables de entorno desde el archivo .env ubicado en la raíz
+# Comentario en español: En python-dotenv la carga es silenciosa por defecto (sin publicidad de dotenv v17),
+# cumpliendo con el estándar de mantener los logs de producción completamente limpios (BUG-003).
 load_dotenv()
 
 # Obtener la URL de conexión segura de Upstash Redis
