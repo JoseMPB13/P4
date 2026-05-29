@@ -1,8 +1,15 @@
 // frontend/js/components/AuthModal.js
 /**
  * Componente AuthModal.
- * Responsabilidad: Inyectar la interfaz del modal de autenticación (Login/Registro)
- * en el DOM y gestionar el envío de formularios mediante el servicio de autenticación.
+ * 
+ * CICLO DE RENDERING (React-style):
+ * 1. Constructor: Guarda la referencia al elemento contenedor en el DOM.
+ * 2. Render: Inyecta el modal-overlay, modal-box, las pestañas de navegación (tabs-minimal)
+ *    y los dos paneles de formularios (Login/Registro) con inputs minimalistas y alertas personalizadas.
+ * 3. Inicializar Eventos (Post-Render):
+ *    - Toggles de Pestañas: Modifica el display de los paneles y la clase .active de los botones de pestañas.
+ *    - Cierre de Modal: Remueve la clase .active de la capa overlay al hacer clic en cerrar o en el fondo.
+ *    - Formulario Submit: Valida datos y ejecuta login/registro contra authService.
  */
 
 import { authService } from "../services/authService.js";
@@ -17,159 +24,163 @@ export class AuthModal {
     }
 
     /**
-     * Inyecta la estructura HTML del modal de autenticación.
+     * Inyecta la estructura HTML del modal de autenticación minimalista.
      */
     render() {
         if (!this.contenedor) return;
 
         this.contenedor.innerHTML = `
-            <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content rounded-4 border-0 shadow-lg">
-                        <div class="modal-header border-0 pb-0 justify-content-end">
-                            <button type="button" class="btn-close shadow-none" data-bs-close="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body px-4 pb-4 pt-2">
-                            <!-- Nav Tabs para alternar entre Login y Register -->
-                            <ul class="nav nav-pills nav-fill bg-light p-1 rounded-pill mb-4" id="authTab" role="tablist">
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link active rounded-pill fw-semibold py-2" id="login-tab" data-bs-toggle="tab" data-bs-target="#login-panel" type="button" role="tab" aria-controls="login-panel" aria-selected="true">
-                                        Iniciar Sesión
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link rounded-pill fw-semibold py-2" id="register-tab" data-bs-toggle="tab" data-bs-target="#register-panel" type="button" role="tab" aria-controls="register-panel" aria-selected="false">
-                                        Registrarse
-                                    </button>
-                                </li>
-                            </ul>
-
-                            <div class="tab-content" id="authTabContent">
-                                <!-- Panel 1: Login -->
-                                <div class="tab-pane fade show active" id="login-panel" role="tabpanel" aria-labelledby="login-tab">
-                                    <div class="text-center mb-4">
-                                        <h3 class="fw-bold text-navy">¡Bienvenido de nuevo!</h3>
-                                        <p class="text-muted fs-6">Ingresa tus credenciales institucionales</p>
-                                    </div>
-                                    <form id="login-form" novalidate>
-                                        <div class="mb-3">
-                                            <label for="login-email" class="form-label fw-semibold text-navy">Correo Electrónico</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-envelope"></i></span>
-                                                <input type="email" class="form-control bg-light border-start-0 ps-0" id="login-email" required placeholder="nombre@universidad.edu">
-                                            </div>
-                                            <div class="invalid-feedback">Por favor ingresa un correo electrónico institucional válido.</div>
-                                        </div>
-                                        <div class="mb-4">
-                                            <label for="login-password" class="form-label fw-semibold text-navy">Contraseña</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-lock"></i></span>
-                                                <input type="password" class="form-control bg-light border-start-0 ps-0" id="login-password" required placeholder="••••••••" minlength="6">
-                                            </div>
-                                            <div class="invalid-feedback">La contraseña debe tener al menos 6 caracteres.</div>
-                                        </div>
-                                        <button type="submit" class="btn btn-navy w-100 py-2.5 rounded-pill fw-semibold shadow-sm mb-3">
-                                            <span class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true" id="login-spinner"></span>
-                                            Acceder <i class="bi bi-arrow-right ms-1"></i>
-                                        </button>
-                                    </form>
-                                </div>
-
-                                <!-- Panel 2: Register -->
-                                <div class="tab-pane fade" id="register-panel" role="tabpanel" aria-labelledby="register-tab">
-                                    <div class="text-center mb-4">
-                                        <h3 class="fw-bold text-navy">Crea tu cuenta</h3>
-                                        <p class="text-muted fs-6">Únete a la red de reportes de infraestructura</p>
-                                    </div>
-                                    <form id="register-form" novalidate>
-                                        <div class="mb-3">
-                                            <label for="reg-nombre" class="form-label fw-semibold text-navy">Nombre Completo</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-person"></i></span>
-                                                <input type="text" class="form-control bg-light border-start-0 ps-0" id="reg-nombre" required placeholder="Ej. Juan Pérez">
-                                            </div>
-                                            <div class="invalid-feedback">El nombre completo es obligatorio.</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="reg-email" class="form-label fw-semibold text-navy">Correo Electrónico</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-envelope"></i></span>
-                                                <input type="email" class="form-control bg-light border-start-0 ps-0" id="reg-email" required placeholder="usuario@universidad.edu.bo">
-                                            </div>
-                                            <div class="invalid-feedback">Ingresa un correo con formato válido.</div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="reg-password" class="form-label fw-semibold text-navy">Contraseña</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-lock"></i></span>
-                                                <input type="password" class="form-control bg-light border-start-0 ps-0" id="reg-password" required placeholder="Mínimo 6 caracteres" minlength="6">
-                                            </div>
-                                            <div class="invalid-feedback">La contraseña debe tener mínimo 6 caracteres.</div>
-                                        </div>
-                                        <div class="mb-4">
-                                            <label for="reg-rol" class="form-label fw-semibold text-navy">Rol en la Plataforma</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-people"></i></span>
-                                                <select class="form-select bg-light border-start-0 ps-0" id="reg-rol" required>
-                                                    <option value="estudiante" selected>Estudiante</option>
-                                                    <option value="personal_mantenimiento">Personal de Mantenimiento</option>
-                                                    <option value="admin">Administrador</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <button type="submit" class="btn btn-navy w-100 py-2.5 rounded-pill fw-semibold shadow-sm mb-3">
-                                            <span class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true" id="reg-spinner"></span>
-                                            Registrar Cuenta <i class="bi bi-check-circle-fill ms-1"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-
-                            <!-- Contenedor de notificaciones de alerta dentro del Modal -->
-                            <div id="auth-alert" class="alert d-none mt-3" role="alert"></div>
-                        </div>
+            <div class="modal-overlay">
+                <div class="modal-box">
+                    <div class="modal-header-minimal">
+                        <h4 style="font-weight: 700; color: var(--text-primary);">Ingreso al Sistema</h4>
+                        <button class="btn-minimal btn-text" id="btn-close-modal" style="padding: 0.25rem;"><i class="bi bi-x-lg"></i></button>
                     </div>
+                    
+                    <div class="tabs-minimal">
+                        <button class="tab-btn-minimal active" id="tab-login">Acceder</button>
+                        <button class="tab-btn-minimal" id="tab-register">Registro</button>
+                    </div>
+                    
+                    <!-- Panel 1: Login -->
+                    <div id="panel-login">
+                        <div style="text-align: center; margin-bottom: 1.5rem;">
+                            <h3 style="font-weight: 700; margin-bottom: 0.25rem;">¡Bienvenido!</h3>
+                            <p class="text-muted-custom">Ingresa tus credenciales institucionales</p>
+                        </div>
+                        <form id="login-form">
+                            <div class="form-group">
+                                <label for="login-email" class="form-label-minimal">Correo Electrónico</label>
+                                <input type="email" class="form-control-minimal" id="login-email" required placeholder="nombre@universidad.edu.bo">
+                            </div>
+                            <div class="form-group">
+                                <label for="login-password" class="form-label-minimal">Contraseña</label>
+                                <input type="password" class="form-control-minimal" id="login-password" required placeholder="••••••••">
+                            </div>
+                            <button type="submit" class="btn-minimal btn-accent" style="width: 100%; margin-top: 0.5rem;">
+                                <span class="loader-spinner d-none" id="login-spinner" style="margin-right: 0.5rem;"></span>
+                                Acceder <i class="bi bi-arrow-right-short" style="margin-left: 0.25rem;"></i>
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Panel 2: Register -->
+                    <div id="panel-register" style="display: none;">
+                        <div style="text-align: center; margin-bottom: 1.5rem;">
+                            <h3 style="font-weight: 700; margin-bottom: 0.25rem;">Crea tu cuenta</h3>
+                            <p class="text-muted-custom">Únete a la red de reportes de infraestructura</p>
+                        </div>
+                        <form id="register-form">
+                            <div class="form-group">
+                                <label for="reg-nombre" class="form-label-minimal">Nombre Completo</label>
+                                <input type="text" class="form-control-minimal" id="reg-nombre" required placeholder="Ej. Juan Pérez">
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-email" class="form-label-minimal">Correo Electrónico</label>
+                                <input type="email" class="form-control-minimal" id="reg-email" required placeholder="usuario@universidad.edu.bo">
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-password" class="form-label-minimal">Contraseña</label>
+                                <input type="password" class="form-control-minimal" id="reg-password" required placeholder="Mínimo 6 caracteres">
+                            </div>
+                            <div class="form-group">
+                                <label for="reg-rol" class="form-label-minimal">Rol en la Plataforma</label>
+                                <select class="form-control-minimal" id="reg-rol" required style="appearance: none;">
+                                    <option value="estudiante" selected>Estudiante</option>
+                                    <option value="personal_mantenimiento">Personal de Mantenimiento</option>
+                                    <option value="admin">Administrador</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn-minimal btn-accent" style="width: 100%; margin-top: 0.5rem;">
+                                <span class="loader-spinner d-none" id="reg-spinner" style="margin-right: 0.5rem;"></span>
+                                Registrar Cuenta <i class="bi bi-check-circle" style="margin-left: 0.25rem;"></i>
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div id="auth-alert" class="alert-minimal"></div>
                 </div>
             </div>
         `;
 
-        // Asocia los eventos después de renderizar el HTML en el DOM
         this.inicializarEventos();
     }
 
     /**
-     * Registra los eventos submit de los formularios e interactúa con el servicio de autenticación.
+     * Vincula listeners de interactividad de la interfaz y envío de datos.
      */
     inicializarEventos() {
+        const overlay = this.contenedor.querySelector(".modal-overlay");
+        const btnClose = document.getElementById("btn-close-modal");
+        
+        const tabLogin = document.getElementById("tab-login");
+        const tabRegister = document.getElementById("tab-register");
+        
+        const panelLogin = document.getElementById("panel-login");
+        const panelRegister = document.getElementById("panel-register");
+
         const loginForm = document.getElementById("login-form");
         const registerForm = document.getElementById("register-form");
 
+        // 1. Lógica de Pestañas (Tabs Switching)
+        if (tabLogin && tabRegister) {
+            tabLogin.addEventListener("click", () => {
+                tabLogin.classList.add("active");
+                tabRegister.classList.remove("active");
+                panelLogin.style.display = "block";
+                panelRegister.style.display = "none";
+                this.limpiarAlerta();
+            });
+
+            tabRegister.addEventListener("click", () => {
+                tabRegister.classList.add("active");
+                tabLogin.classList.remove("active");
+                panelLogin.style.display = "none";
+                panelRegister.style.display = "block";
+                this.limpiarAlerta();
+            });
+        }
+
+        // 2. Lógica de Cierre de Modal
+        if (btnClose && overlay) {
+            btnClose.addEventListener("click", () => {
+                overlay.classList.remove("active");
+            });
+
+            // Cerrar al hacer clic en la capa overlay externa (fuera de la caja modal)
+            overlay.addEventListener("click", (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove("active");
+                }
+            });
+        }
+
+        // 3. Envío de Formulario de Inicio de Sesión (Login)
         if (loginForm) {
             loginForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
 
-                if (!loginForm.checkValidity()) {
-                    e.stopPropagation();
-                    loginForm.classList.add("was-validated");
+                const emailEl = document.getElementById("login-email");
+                const passwordEl = document.getElementById("login-password");
+
+                if (!emailEl.value.trim() || !passwordEl.value.trim()) {
+                    this.mostrarAlerta("danger", "⚠️ Todos los campos son obligatorios.");
                     return;
                 }
 
-                const email = document.getElementById("login-email").value;
-                const password = document.getElementById("login-password").value;
+                const email = emailEl.value.trim();
+                const password = passwordEl.value;
 
                 this.mostrarCarga("login-spinner", true);
                 this.limpiarAlerta();
 
                 try {
-                    // Llamamos al servicio de Autenticación
                     await authService.login(email, password);
+                    this.mostrarAlerta("success", "✅ ¡Acceso concedido! Recargando portal...");
 
-                    this.mostrarAlerta("success", "✅ ¡Acceso concedido! Redireccionando...");
-
-                    // Recarga la interfaz tras 1.5s
                     setTimeout(() => {
                         window.location.reload();
-                    }, 1500);
+                    }, 1000);
 
                 } catch (error) {
                     this.mostrarAlerta("danger", `❌ ${error.message}`);
@@ -179,37 +190,43 @@ export class AuthModal {
             });
         }
 
+        // 4. Envío de Formulario de Registro
         if (registerForm) {
             registerForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
 
-                if (!registerForm.checkValidity()) {
-                    e.stopPropagation();
-                    registerForm.classList.add("was-validated");
+                const nombreEl = document.getElementById("reg-nombre");
+                const emailEl = document.getElementById("reg-email");
+                const passwordEl = document.getElementById("reg-password");
+                const rolEl = document.getElementById("reg-rol");
+
+                if (!nombreEl.value.trim() || !emailEl.value.trim() || !passwordEl.value.trim() || !rolEl.value) {
+                    this.mostrarAlerta("danger", "⚠️ Todos los campos son obligatorios.");
                     return;
                 }
 
-                const nombre = document.getElementById("reg-nombre").value;
-                const email = document.getElementById("reg-email").value;
-                const password = document.getElementById("reg-password").value;
-                const rol = document.getElementById("reg-rol").value;
+                if (passwordEl.value.length < 6) {
+                    this.mostrarAlerta("danger", "⚠️ La contraseña debe tener al menos 6 caracteres.");
+                    return;
+                }
+
+                const nombre = nombreEl.value.trim();
+                const email = emailEl.value.trim();
+                const password = passwordEl.value;
+                const rol = rolEl.value;
 
                 this.mostrarCarga("reg-spinner", true);
                 this.limpiarAlerta();
 
                 try {
-                    // Llamamos al servicio de Autenticación
                     await authService.register({ nombre, email, password, rol });
-
-                    this.mostrarAlerta("success", "🎉 ¡Cuenta registrada con éxito! Inicia sesión para continuar.");
+                    this.mostrarAlerta("success", "🎉 ¡Cuenta registrada con éxito! Ya puedes iniciar sesión.");
                     registerForm.reset();
-                    registerForm.classList.remove("was-validated");
 
-                    // Cambia a la pestaña de login tras 2 segundos
+                    // Switch a la pestaña de login tras un breve lapso
                     setTimeout(() => {
-                        const loginTab = document.getElementById("login-tab");
-                        if (loginTab) loginTab.click();
-                    }, 2000);
+                        tabLogin.click();
+                    }, 1500);
 
                 } catch (error) {
                     this.mostrarAlerta("danger", `❌ ${error.message}`);
@@ -221,9 +238,7 @@ export class AuthModal {
     }
 
     /**
-     * Muestra u oculta el spinner del botón.
-     * @param {string} spinnerId - ID del spinner.
-     * @param {boolean} mostrar - Flag de visibilidad.
+     * Muestra o esconde el spinner de carga.
      */
     mostrarCarga(spinnerId, mostrar) {
         const spinner = document.getElementById(spinnerId);
@@ -236,24 +251,22 @@ export class AuthModal {
     }
 
     /**
-     * Despliega un mensaje de alerta en el modal.
-     * @param {string} tipo - Tipo de alerta ('success', 'danger').
-     * @param {string} mensaje - Texto del mensaje.
+     * Despliega la alerta minimalista en el modal.
      */
     mostrarAlerta(tipo, mensaje) {
         const alertBox = document.getElementById("auth-alert");
         if (!alertBox) return;
-        alertBox.className = `alert alert-${tipo} mt-3 d-block`;
+        alertBox.className = `alert-minimal alert-${tipo} active`;
         alertBox.textContent = mensaje;
     }
 
     /**
-     * Limpia y oculta cualquier alerta previa.
+     * Limpia la alerta del modal.
      */
     limpiarAlerta() {
         const alertBox = document.getElementById("auth-alert");
         if (alertBox) {
-            alertBox.className = "alert d-none mt-3";
+            alertBox.className = "alert-minimal";
             alertBox.textContent = "";
         }
     }

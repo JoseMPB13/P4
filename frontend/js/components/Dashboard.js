@@ -3,15 +3,12 @@
  * Componente Dashboard.
  * 
  * CICLO DE RENDERING (React-style):
- * 1. Constructor: Recibe el selector del contenedor y guarda la referencia en el DOM.
- * 2. Render: Limpia el contenedor principal y pinta la estructura base (cargador/spinner).
- * 3. Fetch Data (Efecto Secundario): Ejecuta de forma asíncrona la petición al backend para obtener reportes.
- * 4. Render Table: Reemplaza la estructura base con la tabla de datos procesados.
- *    - Determina el rol del usuario autenticado (estudiante, personal_mantenimiento, admin).
- *    - Si es técnico o administrador, renderiza un select editable por fila para actualizar el estado en la base de datos.
- *    - Si es estudiante o visitante, renderiza una etiqueta estática (badge).
- * 5. Event Binding: Asocia un event listener de delegación de eventos al contenedor para capturar cambios
- *    en los dropdowns de estado sin re-bindear en cada fila.
+ * 1. Constructor: Guarda la referencia al elemento contenedor en el DOM.
+ * 2. Render: Limpia el contenedor principal e inyecta un estado de carga/spinner minimalista.
+ * 3. Fetch Data (Efecto Secundario): Solicita asíncronamente las incidencias a la API.
+ * 4. Render Table: Pinta las filas de la tabla minimalista (.table-minimal) e inyecta selects (.select-minimal)
+ *    de estado si el rol de usuario es técnico o administrador, o badges (.badge-minimal) estáticos en caso de estudiante.
+ * 5. Event Binding: Aplica delegación de eventos al contenedor para capturar cambios en selects o clics en el botón de actualización.
  */
 
 import { apiFetch } from "../services/api.js";
@@ -21,7 +18,7 @@ export class Dashboard {
     /**
      * Inicializa el componente Dashboard.
      * @param {string} selectorContenedor - Selector CSS del elemento contenedor.
-     * @param {Function} alCambiarEstado - Callback opcional ejecutado al actualizar el estado de un reporte.
+     * @param {Function} alCambiarEstado - Callback ejecutado tras actualizar con éxito un reporte.
      */
     constructor(selectorContenedor, alCambiarEstado = null) {
         this.contenedor = document.querySelector(selectorContenedor);
@@ -30,33 +27,30 @@ export class Dashboard {
     }
 
     /**
-     * Ejecuta el rendering de la interfaz del dashboard y obtiene reportes de la API.
+     * Obtiene el listado de incidencias del backend y desencadena el renderizado de la tabla.
      */
     async render() {
         if (!this.contenedor) return;
 
-        // Renderizado del loader inicial (Simula estado de carga)
+        // Renderizado del estado de carga (loader minimalista)
         this.contenedor.innerHTML = `
-            <div class="card bg-glass border-0 shadow-lg p-5 rounded-4 mt-4 text-center">
-                <div class="spinner-border text-info mb-3" role="status" style="width: 3rem; height: 3rem;">
-                    <span class="visually-hidden">Cargando incidencias...</span>
-                </div>
-                <h5 class="text-white fw-semibold">Cargando incidencias del campus...</h5>
+            <div class="flat-card" style="text-align: center; padding: 4rem 2rem;">
+                <div class="loader-spinner" style="width: 2.5rem; height: 2.5rem; margin-bottom: 1rem;"></div>
+                <h5 style="color: var(--text-secondary); font-weight: 500;">Obteniendo información del campus...</h5>
             </div>
         `;
 
         try {
-            // Petición al endpoint público de reportes
             const respuesta = await apiFetch("/reportes/");
             if (!respuesta.ok) {
-                throw new Error("No se pudo conectar con el servidor de datos.");
+                throw new Error("Imposible establecer comunicación con el servidor de datos.");
             }
             const reportes = await respuesta.json();
 
-            // Renderizar la tabla principal con los datos recibidos
+            // Renderizar tabla de reportes
             this.renderTabla(reportes);
 
-            // Registrar los eventos únicamente en el primer render para evitar duplicados
+            // Registrar listeners de delegación de eventos de forma única
             if (!this.inicializado) {
                 this.inicializarEventos();
                 this.inicializado = true;
@@ -64,21 +58,26 @@ export class Dashboard {
 
         } catch (error) {
             this.contenedor.innerHTML = `
-                <div class="card bg-glass border-0 shadow-lg p-5 rounded-4 mt-4 text-center">
-                    <i class="bi bi-cloud-slash-fill text-danger display-4 mb-3"></i>
-                    <h4 class="text-white fw-bold">Error de Conexión</h4>
-                    <p class="text-white-60">${error.message}</p>
-                    <button class="btn btn-outline-light rounded-pill btn-sm mt-2 px-3" onclick="window.location.reload()">
+                <div class="flat-card" style="text-align: center; padding: 3rem 2rem;">
+                    <i class="bi bi-cloud-slash" style="color: #ef4444; font-size: 2.5rem; margin-bottom: 1rem; display: block;"></i>
+                    <h4 style="font-weight: 700; margin-bottom: 0.5rem;">Error de conexión</h4>
+                    <p class="text-muted-custom" style="margin-bottom: 1.5rem;">${error.message}</p>
+                    <button class="btn-minimal btn-outline" id="btn-reintentar-fetch">
                         Reintentar <i class="bi bi-arrow-clockwise"></i>
                     </button>
                 </div>
             `;
+
+            const btnReintentar = document.getElementById("btn-reintentar-fetch");
+            if (btnReintentar) {
+                btnReintentar.addEventListener("click", () => this.render());
+            }
         }
     }
 
     /**
-     * Renderiza la tabla completa con el listado de reportes.
-     * @param {Array} reportes - Lista de incidencias de la base de datos.
+     * Dibuja la estructura HTML de la tabla con los datos del servidor.
+     * @param {Array} reportes - Lista de reportes.
      */
     renderTabla(reportes) {
         const usuarioActual = authService.getUsuarioActual();
@@ -86,16 +85,16 @@ export class Dashboard {
 
         if (reportes.length === 0) {
             this.contenedor.innerHTML = `
-                <div class="card bg-glass border-0 shadow-lg p-5 rounded-4 mt-4 text-center">
-                    <i class="bi bi-clipboard-check text-success display-4 mb-3"></i>
-                    <h4 class="text-white fw-bold">Sin Novedades</h4>
-                    <p class="text-white-60 mb-0">No hay problemas de infraestructura reportados actualmente en la universidad.</p>
+                <div class="flat-card" style="text-align: center; padding: 4rem 2rem;">
+                    <i class="bi bi-clipboard-check" style="color: var(--accent-green); font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
+                    <h4 style="font-weight: 700; margin-bottom: 0.5rem;">Sin Novedades</h4>
+                    <p class="text-muted-custom">No existen problemas reportados activos en la universidad.</p>
                 </div>
             `;
             return;
         }
 
-        // Mapea las filas de la tabla de forma dinámica
+        // Crear las filas de la tabla de forma dinámica
         const filasHTML = reportes.map(reporte => {
             const fechaStr = new Date(reporte.creado_en).toLocaleString("es-BO", {
                 dateStyle: "short",
@@ -103,23 +102,24 @@ export class Dashboard {
             });
             const autor = reporte.usuario ? reporte.usuario.nombre : "Anónimo";
 
-            // Renderizado condicional del estado (Select para personal autorizado, Badge estático para estudiantes)
             let estadoHTML = "";
             if (esPersonalAutorizado) {
+                // Dropdown de cambio de estado interactivo
                 estadoHTML = `
-                    <select class="form-select form-select-sm bg-dark text-white border-0 select-estado select-estado-glass" data-id="${reporte.id}">
+                    <select class="select-minimal select-estado" data-id="${reporte.id}">
                         <option value="pendiente" ${reporte.estado === "pendiente" ? "selected" : ""}>⚠️ Pendiente</option>
                         <option value="en proceso" ${reporte.estado === "en proceso" ? "selected" : ""}>⚙️ En Proceso</option>
                         <option value="resuelto" ${reporte.estado === "resuelto" ? "selected" : ""}>✅ Resuelto</option>
                     </select>
                 `;
             } else {
-                let badgeClass = "bg-warning text-dark";
-                if (reporte.estado === "en proceso") badgeClass = "bg-info text-dark";
-                if (reporte.estado === "resuelto") badgeClass = "bg-success text-white";
-                
+                // Badge de estado estático plano
+                let badgeClass = "badge-warning";
+                if (reporte.estado === "en proceso") badgeClass = "badge-info";
+                if (reporte.estado === "resuelto") badgeClass = "badge-success";
+
                 estadoHTML = `
-                    <span class="badge rounded-pill ${badgeClass} px-3 py-2 fw-semibold">
+                    <span class="badge-minimal ${badgeClass}">
                         ${reporte.estado.toUpperCase()}
                     </span>
                 `;
@@ -127,20 +127,24 @@ export class Dashboard {
 
             return `
                 <tr>
-                    <td class="fw-bold text-white-60">#${reporte.id}</td>
+                    <td style="font-weight: 600; color: var(--text-secondary);">#${reporte.id}</td>
                     <td>
-                        <div class="fw-bold text-white">${reporte.titulo}</div>
-                        <small class="text-white-50 text-truncate d-inline-block" style="max-width: 250px;">${reporte.descripcion}</small>
+                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${reporte.titulo}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            ${reporte.descripcion}
+                        </div>
                     </td>
                     <td>
-                        <span class="text-white"><i class="bi bi-geo-alt-fill text-warning me-1"></i>${reporte.ubicacion}</span>
+                        <span style="font-size: 0.875rem;"><i class="bi bi-geo-alt-fill" style="color: var(--accent); margin-right: 0.25rem;"></i>${reporte.ubicacion}</span>
                     </td>
                     <td>
-                        <span class="badge bg-secondary text-white-80 text-capitalize">${reporte.tipo_problema}</span>
+                        <span style="font-size: 0.75rem; background: rgba(255,255,255,0.05); padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: capitalize;">
+                            ${reporte.tipo_problema}
+                        </span>
                     </td>
                     <td>
-                        <div class="text-white-80 font-monospace small">${autor}</div>
-                        <div class="text-white-50 small">${fechaStr}</div>
+                        <div style="font-weight: 500; font-size: 0.8125rem;">${autor}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${fechaStr}</div>
                     </td>
                     <td>${estadoHTML}</td>
                 </tr>
@@ -149,28 +153,29 @@ export class Dashboard {
 
         // Inyecta el contenedor de la tabla en el DOM
         this.contenedor.innerHTML = `
-            <div class="card bg-glass border-0 shadow-lg p-4 rounded-4 mt-4 transition-hover">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3 class="fw-bold text-white mb-0">
-                        <i class="bi bi-list-task text-info me-2"></i>Monitoreo de Incidencias
+            <div class="flat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h3 style="font-weight: 700; margin: 0;">
+                        <i class="bi bi-list-task" style="color: var(--accent-blue); margin-right: 0.5rem;"></i>Monitoreo de Incidencias
                     </h3>
-                    <button class="btn btn-outline-light btn-sm rounded-pill py-1.5 px-3" id="btn-refrescar-dashboard">
-                        <i class="bi bi-arrow-clockwise me-1"></i> Refrescar
+                    <button class="btn-minimal btn-outline" id="btn-refrescar-dashboard" style="padding: 0.4rem 0.75rem;">
+                        <i class="bi bi-arrow-clockwise" id="refrescar-icon"></i>
                     </button>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-hover text-white align-middle mb-0">
-                        <thead class="text-white-60 border-bottom border-secondary">
+                
+                <div class="table-wrapper">
+                    <table class="table-minimal">
+                        <thead>
                             <tr>
-                                <th scope="col" style="width: 5%">ID</th>
-                                <th scope="col" style="width: 35%">Incidencia</th>
-                                <th scope="col" style="width: 20%">Ubicación</th>
-                                <th scope="col" style="width: 15%">Tipo</th>
-                                <th scope="col" style="width: 15%">Reportado por</th>
-                                <th scope="col" style="width: 10%">Estado</th>
+                                <th style="width: 8%">ID</th>
+                                <th style="width: 37%">Incidencia</th>
+                                <th style="width: 20%">Ubicación</th>
+                                <th style="width: 15%">Tipo</th>
+                                <th style="width: 15%">Reportado por</th>
+                                <th style="width: 5%">Estado</th>
                             </tr>
                         </thead>
-                        <tbody class="border-0">
+                        <tbody>
                             ${filasHTML}
                         </tbody>
                     </table>
@@ -180,24 +185,23 @@ export class Dashboard {
     }
 
     /**
-     * Vincula y gestiona eventos de cambio e interactividad del dashboard.
+     * Vincula el listener de cambio de estado empleando delegación de eventos.
      */
     inicializarEventos() {
-        // Event Delegation para cambios en dropdowns de estado
+        // Capturar cambios en los dropdowns de estado (.select-estado)
         this.contenedor.addEventListener("change", async (e) => {
             if (e.target.matches(".select-estado")) {
                 const reporteId = e.target.dataset.id;
                 const nuevoEstado = e.target.value;
-                
                 await this.actualizarEstadoReporte(reporteId, nuevoEstado, e.target);
             }
         });
 
-        // Click en botón refrescar
+        // Capturar clics en botón de refresco
         this.contenedor.addEventListener("click", async (e) => {
             const btnRefrescar = e.target.closest("#btn-refrescar-dashboard");
             if (btnRefrescar) {
-                const icon = btnRefrescar.querySelector("i");
+                const icon = document.getElementById("refrescar-icon");
                 if (icon) icon.classList.add("spin-animation");
                 await this.render();
             }
@@ -205,16 +209,12 @@ export class Dashboard {
     }
 
     /**
-     * Envía la petición PUT a la API para modificar el estado de una incidencia.
-     * @param {string|number} id - ID único del reporte.
-     * @param {string} nuevoEstado - El valor del nuevo estado ('pendiente', 'en proceso', 'resuelto').
-     * @param {HTMLElement} selectEl - Referencia al elemento select para restauración en caso de error.
+     * Realiza petición PUT para modificar el estado y refrescar las vistas de la SPA.
      */
     async actualizarEstadoReporte(id, nuevoEstado, selectEl) {
-        const valorAnterior = selectEl.defaultValue;
-        
+        const valorPrevio = selectEl.defaultValue;
+
         try {
-            // Envía la petición PUT usando apiFetch
             const respuesta = await apiFetch(`/reportes/${id}`, {
                 method: "PUT",
                 headers: {
@@ -227,21 +227,20 @@ export class Dashboard {
 
             if (!respuesta.ok) {
                 const data = await respuesta.json();
-                throw new Error(data.error || data.detail || "No autorizado o error del servidor.");
+                throw new Error(data.error || data.detail || "No autorizado o error de API.");
             }
 
-            // Avisar al callback de cambio de estado (refrescar estadísticas, etc.)
+            // Actualizar valor base
+            selectEl.defaultValue = nuevoEstado;
+
+            // Invocar callback si existe
             if (this.alCambiarEstado) {
                 await this.alCambiarEstado();
             }
 
-            // Guardamos el nuevo valor como default
-            selectEl.defaultValue = nuevoEstado;
-
         } catch (error) {
-            alert(`❌ Error al actualizar estado: ${error.message}`);
-            // Restaurar el select a su valor previo en caso de error
-            selectEl.value = valorAnterior;
+            alert(`❌ Error al actualizar el estado: ${error.message}`);
+            selectEl.value = valorPrevio;
         }
     }
 }

@@ -8,163 +8,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Bootstrap 5 CSS CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <!-- Bootstrap Icons CDN -->
+    <!-- Bootstrap Icons para íconos minimalistas -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <!-- Custom CSS -->
+    <!-- Custom CSS Minimalista -->
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
-    <!-- =========================================================================
-         🛡️ BARRA DE NAVEGACIÓN SUPERIOR (NAVBAR)
-         ========================================================================= -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-navy shadow-sm py-3">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2 brand-font" href="#">
-                <i class="bi bi-building-fill-gear text-warning fs-3"></i>
-                <span class="fw-bold tracking-wide">UPDS <span class="fw-light text-warning-gold">Infraestructura</span></span>
-            </a>
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center gap-2 mt-3 mt-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#"><i class="bi bi-house-door-fill me-1"></i> Inicio</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#proposito"><i class="bi bi-info-circle-fill me-1"></i> Propósito</a>
-                    </li>
-                    <li class="nav-item ms-lg-3">
-                        <button class="btn btn-warning-gold text-navy fw-semibold px-4 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#authModal">
-                            <i class="bi bi-person-fill-lock me-1"></i> Acceder / Registrarse
-                        </button>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <!-- Contenedor global de navegación minimalista -->
+    <nav id="navbar-container"></nav>
 
-    <!-- =========================================================================
-         🚀 SECCIÓN DE BIENVENIDA (HERO SECTION)
-         ========================================================================= -->
-    <header class="hero-section py-5 text-white">
-        <div class="container py-5">
-            <div class="row align-items-center g-5">
-                <div class="col-lg-6">
-                    <span class="badge bg-warning text-navy mb-3 px-3 py-2 rounded-pill fw-bold text-uppercase tracking-wider">Reportes en Tiempo Real</span>
-                    <h1 class="display-4 fw-extrabold text-white mb-3 text-shadow main-title">Reporta fallas, mejora tu campus.</h1>
-                    <p class="lead text-white-80 mb-4 fs-5 font-inter">
-                        La plataforma centralizada para el reporte y seguimiento de incidencias físicas de infraestructura en la Universidad Privada Domingo Savio. Colabora de forma directa con nuestro personal de soporte técnico.
-                    </p>
-                    <div class="d-flex flex-wrap gap-3">
-                        <button class="btn btn-warning-gold text-navy btn-lg fw-semibold px-4 py-3 rounded-pill shadow" data-bs-toggle="modal" data-bs-target="#authModal">
-                            <i class="bi bi-plus-circle-fill me-2"></i> Crear Nuevo Reporte
-                        </button>
-                        <a href="#proposito" class="btn btn-outline-light btn-lg fw-semibold px-4 py-3 rounded-pill border-2">
-                            Conocer Más <i class="bi bi-arrow-right-short ms-1"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="col-lg-6 text-center">
-                    <div class="hero-image-wrapper p-4 bg-glass-dark rounded-4 shadow-lg border border-glass">
-                        <i class="bi bi-cone-striped display-1 text-warning animate-pulse mb-3 d-inline-block"></i>
-                        <h3 class="fw-bold mb-2">Estado del Campus</h3>
-                        <p class="text-white-70 fs-6">
-                            Estadísticas agregadas de incidencias reportadas, en atención y solucionadas. Inicia sesión para ver el tablero técnico.
-                        </p>
-                        <div id="stats-container"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
+    <!-- Contenedor principal vacío (Lienzo SPA) -->
+    <main id="app-root"></main>
 
-    <!-- =========================================================================
-         📋 SECCIÓN DE PROPÓSITO E INFORMACIÓN
-         ========================================================================= -->
-    <main class="py-5" id="proposito">
-        <div class="container py-4">
-            <div class="text-center max-w-700 mx-auto mb-5">
-                <h2 class="section-title fw-bold text-navy mb-3">Comprometidos con la Excelencia de la Infraestructura</h2>
-                <div class="divider bg-warning mx-auto mb-4"></div>
-                <p class="text-muted font-inter">
-                    Nuestra misión es asegurar un entorno académico óptimo, seguro y plenamente funcional para toda la comunidad universitaria de la UPDS.
-                </p>
-            </div>
-
-            <div class="row g-4">
-                <!-- Tarjeta 1: Reportes Sencillos -->
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm p-4 hover-translate rounded-4">
-                        <div class="card-body">
-                            <div class="icon-circle bg-navy-light text-navy mb-4">
-                                <i class="bi bi-megaphone-fill fs-3"></i>
-                            </div>
-                            <h4 class="card-title fw-bold text-navy mb-3">Reporte Rápido</h4>
-                            <p class="card-text text-muted font-inter">
-                                Los estudiantes pueden registrar fallas físicas como goteras, luminarias dañadas o problemas de red en menos de dos minutos.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tarjeta 2: Notificaciones en Vivo -->
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm p-4 hover-translate rounded-4">
-                        <div class="card-body">
-                            <div class="icon-circle bg-warning-light text-warning-gold mb-4">
-                                <i class="bi bi-lightning-charge-fill fs-3"></i>
-                            </div>
-                            <h4 class="card-title fw-bold text-navy mb-3">Notificación Activa</h4>
-                            <p class="card-text text-muted font-inter">
-                                Gracias a la integración con Redis Pub/Sub, los eventos de creación y cambio de estado se distribuyen asíncronamente en tiempo real.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tarjeta 3: Gestión y Control -->
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm p-4 hover-translate rounded-4">
-                        <div class="card-body">
-                            <div class="icon-circle bg-success-light text-success mb-4">
-                                <i class="bi bi-shield-fill-check fs-3"></i>
-                            </div>
-                            <h4 class="card-title fw-bold text-navy mb-3">Resolución Eficiente</h4>
-                            <p class="card-text text-muted font-inter">
-                                El personal de mantenimiento técnico cuenta con un flujo estructurado para asignar reportes y registrar avances con comentarios trazables.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Contenedores para inyectar componentes del sistema modular -->
-        <div id="dashboard-container"></div>
-        <div id="form-container"></div>
-    </main>
-
-    <!-- =========================================================================
-         🛡️ MODAL DE AUTENTICACIÓN (TABS: ACCEDER / REGISTRARSE)
-         ========================================================================= -->
-    <div id="auth-modal-container"></div>
-
-    <!-- =========================================================================
-         ☕ FOOTER (PIE DE PÁGINA)
-         ========================================================================= -->
-    <footer class="bg-dark text-white-50 py-4 mt-5 border-top border-secondary">
-        <div class="container text-center">
-            <p class="mb-2">© 2026 Universidad Privada Domingo Savio (UPDS). Todos los derechos reservados.</p>
-            <small class="text-white-30">Desarrollado en base a estándares limpios con FastAPI, SQLAlchemy y Bootstrap 5</small>
-        </div>
-    </footer>
-
-    <!-- Bootstrap 5 Bundle with Popper JS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <!-- Custom JavaScript -->
+    <!-- Punto de entrada principal de la SPA -->
     <script type="module" src="js/main.js"></script>
+
 </body>
 </html>

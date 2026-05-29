@@ -3,6 +3,11 @@
  * Componente StatsCard.
  * Responsabilidad: Inyectar la interfaz de tarjetas de estadísticas agregadas
  * en el contenedor correspondiente del DOM y cargar los contadores dinámicamente.
+ * 
+ * CICLO DE RENDERING (React-style):
+ * 1. Constructor: Asigna el contenedor.
+ * 2. Render: Pinta el contenedor usando la rejilla de estadísticas minimalista (.stats-grid-minimal).
+ * 3. Actualizar Contadores (Efecto): Realiza fetch, suma cantidades por estado e inyecta los resultados en el DOM.
  */
 
 import { apiFetch } from "../services/api.js";
@@ -17,30 +22,24 @@ export class StatsCard {
     }
 
     /**
-     * Inyecta la estructura HTML base del componente en el DOM.
+     * Inyecta la estructura HTML base del componente en el DOM (Diseño plano y minimalista).
      */
     render() {
         if (!this.contenedor) return;
 
         this.contenedor.innerHTML = `
-            <div class="row g-3 mt-2">
-                <div class="col-4">
-                    <div class="p-3 bg-glass rounded-3 text-center">
-                        <div class="h2 fw-bold text-warning mb-0" id="stats-total">0</div>
-                        <small class="text-white-60">Creados</small>
-                    </div>
+            <div class="stats-grid-minimal">
+                <div class="stat-box-minimal">
+                    <div class="stat-number warning" id="stats-total">0</div>
+                    <div class="stat-label">Creados</div>
                 </div>
-                <div class="col-4">
-                    <div class="p-3 bg-glass rounded-3 text-center">
-                        <div class="h2 fw-bold text-info mb-0" id="stats-proceso">0</div>
-                        <small class="text-white-60">En Curso</small>
-                    </div>
+                <div class="stat-box-minimal">
+                    <div class="stat-number info" id="stats-proceso">0</div>
+                    <div class="stat-label">En Curso</div>
                 </div>
-                <div class="col-4">
-                    <div class="p-3 bg-glass rounded-3 text-center">
-                        <div class="h2 fw-bold text-success mb-0" id="stats-resuelto">0</div>
-                        <small class="text-white-60">Resueltos</small>
-                    </div>
+                <div class="stat-box-minimal">
+                    <div class="stat-number success" id="stats-resuelto">0</div>
+                    <div class="stat-label">Resueltos</div>
                 </div>
             </div>
         `;

@@ -3,13 +3,13 @@
  * Componente ReportForm.
  * 
  * CICLO DE RENDERING (React-style):
- * 1. Constructor: Recibe el selector del contenedor del DOM donde se inyectará.
- * 2. Render: Evalúa el estado actual de autenticación (si hay un usuario logueado en sessionStorage).
- *    - Si está autenticado, inyecta la UI del formulario de reporte de incidencias.
- *    - Si no está autenticado, inyecta una vista de bloqueo invitando al usuario a iniciar sesión.
- * 3. Inicializar Eventos (Post-Render): Asocia listeners de eventos en el DOM (evento submit del formulario).
- * 4. Submit Handler: Captura los datos, valida con Bootstrap, inyecta el ID de usuario autenticado
- *    y llama a la API con apiFetch (POST /reportes/) inyectando automáticamente el JWT.
+ * 1. Constructor: Guarda la referencia al elemento contenedor en el DOM.
+ * 2. Render: Valida el estado de autenticación de sessionStorage.
+ *    - Si está autenticado, inyecta la UI del formulario de reporte usando clases minimalistas.
+ *    - Si no está autenticado, inyecta una vista plana de bloqueo.
+ * 3. Inicializar Eventos (Post-Render): Vincula el evento submit al formulario.
+ * 4. Submit Handler: Valida campos requeridos, realiza la llamada a la API (POST /reportes/)
+ *    empleando la envoltura apiFetch y dispara el callback de éxito para refrescar la vista.
  */
 
 import { apiFetch } from "../services/api.js";
@@ -19,7 +19,7 @@ export class ReportForm {
     /**
      * Inicializa el componente de formulario.
      * @param {string} selectorContenedor - Selector CSS del elemento contenedor.
-     * @param {Function} alEnviarExitoso - Callback opcional ejecutado al crear un reporte con éxito.
+     * @param {Function} alEnviarExitoso - Callback ejecutado al reportar con éxito.
      */
     constructor(selectorContenedor, alEnviarExitoso = null) {
         this.contenedor = document.querySelector(selectorContenedor);
@@ -27,7 +27,7 @@ export class ReportForm {
     }
 
     /**
-     * Determina el estado y renderiza la interfaz correspondiente en el DOM.
+     * Evalúa la sesión activa y renderiza la interfaz idónea.
      */
     render() {
         if (!this.contenedor) return;
@@ -35,79 +35,85 @@ export class ReportForm {
         const usuario = authService.getUsuarioActual();
 
         if (usuario) {
-            // Renderizado del formulario para usuarios autenticados
+            // Interfaz de formulario minimalista plana
             this.contenedor.innerHTML = `
-                <div class="card bg-glass border-0 shadow-lg p-4 rounded-4 transition-hover">
-                    <h3 class="fw-bold text-white mb-3">
-                        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Reportar Nueva Incidencia
+                <div class="flat-card">
+                    <h3 style="margin-bottom: 0.5rem;">
+                        <i class="bi bi-exclamation-triangle-fill" style="color: var(--accent); margin-right: 0.5rem;"></i>Nueva Incidencia
                     </h3>
-                    <p class="text-white-60 small mb-4">
-                        Hola, <strong>${usuario.nombre}</strong>. Describe detalladamente el problema para que el equipo de mantenimiento pueda atenderlo.
+                    <p class="text-muted-custom" style="margin-bottom: 1.5rem;">
+                        Hola, <strong>${usuario.nombre}</strong>. Registra fallas físicas detectadas para su reparación inmediata.
                     </p>
+                    
                     <form id="reporte-form" novalidate>
-                        <div class="mb-3">
-                            <label for="rep-titulo" class="form-label fw-semibold text-white">Título de la Incidencia</label>
-                            <input type="text" class="form-control bg-glass-input text-white border-0 py-2.5" id="rep-titulo" required placeholder="Ej: Gotera en techo del Aula 101">
-                            <div class="invalid-feedback text-warning">El título es obligatorio.</div>
+                        <div class="form-group">
+                            <label for="rep-titulo" class="form-label-minimal">Título</label>
+                            <input type="text" class="form-control-minimal" id="rep-titulo" required placeholder="Ej: Gotera en techo del Aula 101">
                         </div>
-                        <div class="mb-3">
-                            <label for="rep-descripcion" class="form-label fw-semibold text-white">Descripción Detallada</label>
-                            <textarea class="form-control bg-glass-input text-white border-0 py-2" id="rep-descripcion" rows="3" required placeholder="Describe el problema de forma detallada (ej. causa aparente, urgencia)..."></textarea>
-                            <div class="invalid-feedback text-warning">La descripción es obligatoria.</div>
+                        
+                        <div class="form-group">
+                            <label for="rep-descripcion" class="form-label-minimal">Descripción Detallada</label>
+                            <textarea class="form-control-minimal" id="rep-descripcion" rows="3" required placeholder="Detalla el problema observado..."></textarea>
                         </div>
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <label for="rep-ubicacion" class="form-label fw-semibold text-white">Ubicación Física</label>
-                                <input type="text" class="form-control bg-glass-input text-white border-0 py-2.5" id="rep-ubicacion" required placeholder="Ej: Bloque B, Planta Alta">
-                                <div class="invalid-feedback text-warning">La ubicación es obligatoria.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="rep-tipo" class="form-label fw-semibold text-white">Tipo de Incidencia</label>
-                                <select class="form-select bg-glass-input text-white border-0 py-2.5" id="rep-tipo" required>
-                                    <option value="" disabled selected>Selecciona un tipo...</option>
-                                    <option value="gotera">Fontanería / Gotera</option>
-                                    <option value="daño eléctrico">Falla Eléctrica</option>
-                                    <option value="infraestructura">Daño Estructural</option>
-                                    <option value="mobiliario">Mobiliario Dañado</option>
-                                    <option value="otro">Otro</option>
-                                </select>
-                                <div class="invalid-feedback text-warning">Selecciona un tipo de problema válido.</div>
-                            </div>
+                        
+                        <div class="form-group">
+                            <label for="rep-ubicacion" class="form-label-minimal">Ubicación Física</label>
+                            <input type="text" class="form-control-minimal" id="rep-ubicacion" required placeholder="Ej: Bloque B, Planta Alta, Aula 101">
                         </div>
-                        <button type="submit" class="btn btn-warning w-100 py-2.5 rounded-pill fw-semibold shadow-sm transition-transform">
-                            <span class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true" id="form-spinner"></span>
-                            Enviar Reporte <i class="bi bi-send-fill ms-1"></i>
+                        
+                        <div class="form-group">
+                            <label for="rep-tipo" class="form-label-minimal">Tipo de Incidencia</label>
+                            <select class="form-control-minimal" id="rep-tipo" required style="appearance: none;">
+                                <option value="" disabled selected>Selecciona un tipo...</option>
+                                <option value="gotera">Fontanería / Gotera</option>
+                                <option value="daño eléctrico">Falla Eléctrica</option>
+                                <option value="infraestructura">Daño Estructural</option>
+                                <option value="mobiliario">Mobiliario Dañado</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn-minimal btn-accent" style="width: 100%; margin-top: 0.5rem;">
+                            <span class="loader-spinner d-none" id="form-spinner" style="margin-right: 0.5rem;"></span>
+                            Enviar Reporte <i class="bi bi-send-fill" style="margin-left: 0.25rem;"></i>
                         </button>
                     </form>
-                    <div id="form-alert" class="alert d-none mt-3" role="alert"></div>
+                    <div id="form-alert" class="alert-minimal"></div>
                 </div>
             `;
-            // Asociar eventos del formulario
+            // Enlazar handlers de eventos
             this.inicializarEventos(usuario.id);
         } else {
-            // Renderizado de estado no autenticado (Bloqueo)
+            // Vista de bloqueo en diseño plano
             this.contenedor.innerHTML = `
-                <div class="card bg-glass border-0 shadow-lg p-5 rounded-4 text-center">
-                    <div class="py-3">
-                        <div class="mb-4">
-                            <i class="bi bi-lock-fill text-warning display-4"></i>
-                        </div>
-                        <h4 class="fw-bold text-white">Inicia sesión para Reportar</h4>
-                        <p class="text-white-60 mb-4 mx-auto" style="max-width: 400px;">
-                            Debes estar registrado y haber iniciado sesión para poder registrar problemas de infraestructura y hacer seguimiento en tiempo real.
-                        </p>
-                        <button class="btn btn-warning px-4 py-2.5 rounded-pill fw-semibold shadow" data-bs-toggle="modal" data-bs-target="#authModal">
-                            Acceder / Registrarse <i class="bi bi-box-arrow-in-right ms-1"></i>
-                        </button>
+                <div class="flat-card" style="text-align: center; padding: 3.5rem 2rem;">
+                    <div style="margin-bottom: 1.5rem;">
+                        <i class="bi bi-lock-fill" style="color: var(--accent); font-size: 3rem;"></i>
                     </div>
+                    <h4 style="margin-bottom: 0.75rem; font-weight: 700;">Inicia sesión para reportar</h4>
+                    <p class="text-muted-custom" style="margin-bottom: 1.5rem; max-width: 320px; margin-left: auto; margin-right: auto;">
+                        Debes haber iniciado sesión con tu cuenta institucional para enviar reportes de mantenimiento.
+                    </p>
+                    <button class="btn-minimal btn-accent" id="btn-lock-auth">
+                        Iniciar Sesión <i class="bi bi-box-arrow-in-right" style="margin-left: 0.25rem;"></i>
+                    </button>
                 </div>
             `;
+
+            // Registrar acción para el botón de login cuando está bloqueado
+            const btnLockAuth = document.getElementById("btn-lock-auth");
+            if (btnLockAuth) {
+                btnLockAuth.addEventListener("click", () => {
+                    const overlay = document.querySelector(".modal-overlay");
+                    if (overlay) overlay.classList.add("active");
+                });
+            }
         }
     }
 
     /**
-     * Vincula el listener del formulario y define el flujo de envío de datos.
-     * @param {number} usuarioId - ID del usuario actual que reporta.
+     * Vincula la lógica de captura de envío de formulario.
+     * @param {number} usuarioId - ID del autor del reporte.
      */
     inicializarEventos(usuarioId) {
         const form = document.getElementById("reporte-form");
@@ -116,25 +122,26 @@ export class ReportForm {
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
-            // Validación de Bootstrap
-            if (!form.checkValidity()) {
-                e.stopPropagation();
-                form.classList.add("was-validated");
+            const tituloEl = document.getElementById("rep-titulo");
+            const descripcionEl = document.getElementById("rep-descripcion");
+            const ubicacionEl = document.getElementById("rep-ubicacion");
+            const tipoEl = document.getElementById("rep-tipo");
+
+            // Validación simple manual sin depender de Bootstrap
+            if (!tituloEl.value.trim() || !descripcionEl.value.trim() || !ubicacionEl.value.trim() || !tipoEl.value) {
+                this.mostrarAlerta("danger", "⚠️ Todos los campos son obligatorios.");
                 return;
             }
 
-            // Recolectar datos
-            const titulo = document.getElementById("rep-titulo").value.trim();
-            const descripcion = document.getElementById("rep-descripcion").value.trim();
-            const ubicacion = document.getElementById("rep-ubicacion").value.trim();
-            const tipo_problema = document.getElementById("rep-tipo").value;
+            const titulo = tituloEl.value.trim();
+            const descripcion = descripcionEl.value.trim();
+            const ubicacion = ubicacionEl.value.trim();
+            const tipo_problema = tipoEl.value;
 
             this.mostrarCarga(true);
             this.limpiarAlerta();
 
             try {
-                // Realizar petición POST al backend
-                // Nota: apiFetch inyecta automáticamente el token JWT Bearer
                 const respuesta = await apiFetch("/reportes/", {
                     method: "POST",
                     headers: {
@@ -152,14 +159,13 @@ export class ReportForm {
                 const data = await respuesta.json();
 
                 if (!respuesta.ok) {
-                    throw new Error(data.error || data.detail || "Error al enviar el reporte.");
+                    throw new Error(data.error || data.detail || "Error al registrar el reporte.");
                 }
 
-                this.mostrarAlerta("success", "✅ ¡Reporte enviado con éxito! Se procesará a la brevedad.");
+                this.mostrarAlerta("success", "✅ ¡Incidencia reportada con éxito!");
                 form.reset();
-                form.classList.remove("was-validated");
 
-                // Ejecuta callback si existe (útil para refrescar el Dashboard de reportes en tiempo real)
+                // Disparar callback para refrescar el Dashboard
                 if (this.alEnviarExitoso) {
                     setTimeout(() => {
                         this.alEnviarExitoso();
@@ -167,7 +173,7 @@ export class ReportForm {
                 }
 
             } catch (error) {
-                this.mostrarAlerta("danger", `❌ Error: ${error.message}`);
+                this.mostrarAlerta("danger", `❌ ${error.message}`);
             } finally {
                 this.mostrarCarga(false);
             }
@@ -175,8 +181,7 @@ export class ReportForm {
     }
 
     /**
-     * Controla la visualización del spinner en el botón de envío.
-     * @param {boolean} mostrar - Flag de visibilidad.
+     * Controla el spinner del botón.
      */
     mostrarCarga(mostrar) {
         const spinner = document.getElementById("form-spinner");
@@ -189,24 +194,22 @@ export class ReportForm {
     }
 
     /**
-     * Muestra alertas en la UI del formulario.
-     * @param {string} tipo - Tipo de alerta ('success', 'danger').
-     * @param {string} mensaje - Texto explicativo.
+     * Despliega alerta minimalista.
      */
     mostrarAlerta(tipo, mensaje) {
         const alertBox = document.getElementById("form-alert");
         if (!alertBox) return;
-        alertBox.className = `alert alert-${tipo} mt-3 d-block`;
+        alertBox.className = `alert-minimal alert-${tipo} active`;
         alertBox.textContent = mensaje;
     }
 
     /**
-     * Limpia y oculta cualquier alerta previa.
+     * Limpia alerta.
      */
     limpiarAlerta() {
         const alertBox = document.getElementById("form-alert");
         if (alertBox) {
-            alertBox.className = "alert d-none mt-3";
+            alertBox.className = "alert-minimal";
             alertBox.textContent = "";
         }
     }
