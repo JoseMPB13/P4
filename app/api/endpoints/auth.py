@@ -114,7 +114,9 @@ def iniciar_sesion(payload: UsuarioLogin, db: Session = Depends(get_db)):
     # 3. Generar el Token de acceso JWT codificando declaraciones de identidad
     token_data = {
         "sub": usuario.email, # 'sub' claim estándar para la identidad del sujeto
-        "nombre": usuario.nombre
+        "nombre": usuario.nombre,
+        "id": usuario.id,
+        "rol": usuario.rol
     }
     access_token = AuthService.crear_access_token(data=token_data)
     

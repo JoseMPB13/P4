@@ -7,6 +7,8 @@
 
 import { AuthModal } from "./components/AuthModal.js";
 import { StatsCard } from "./components/StatsCard.js";
+import { ReportForm } from "./components/ReportForm.js";
+import { Dashboard } from "./components/Dashboard.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("🚀 [Main] Inicializando módulos ES6 en el frontend...");
@@ -20,5 +22,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     statsCard.render();
     await statsCard.actualizarContadores();
 
-    console.log("✅ [Main] Todos los componentes iniciales han sido cargados y renderizados.");
+    // 3. Instanciar y renderizar el Dashboard de reportes
+    // Al cambiar de estado en el dashboard, actualizamos los contadores de estadísticas de inmediato
+    const dashboard = new Dashboard("#dashboard-container", async () => {
+        await statsCard.actualizarContadores();
+    });
+    await dashboard.render();
+
+    // 4. Instanciar y renderizar el Formulario de reportes
+    // Al enviar con éxito, refrescamos el dashboard y actualizamos los contadores
+    const reportForm = new ReportForm("#form-container", async () => {
+        await dashboard.render();
+        await statsCard.actualizarContadores();
+    });
+    reportForm.render();
+
+    console.log("✅ [Main] Todos los componentes han sido cargados y renderizados con éxito.");
 });

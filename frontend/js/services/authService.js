@@ -59,7 +59,9 @@ export const authService = {
         if (payload) {
             const datosUsuario = {
                 email: payload.sub,
-                nombre: payload.nombre
+                nombre: payload.nombre,
+                id: payload.id,
+                rol: payload.rol
             };
             sessionStorage.setItem("usuario", JSON.stringify(datosUsuario));
         }
@@ -112,5 +114,18 @@ export const authService = {
         sessionStorage.removeItem("token");
         sessionStorage.removeItem("token_type");
         sessionStorage.removeItem("usuario");
+    },
+
+    /**
+     * Obtiene el usuario actualmente autenticado desde el sessionStorage.
+     * @returns {Object|null} Datos del usuario o null si no está logueado.
+     */
+    getUsuarioActual() {
+        try {
+            const usuarioStr = sessionStorage.getItem("usuario");
+            return usuarioStr ? JSON.parse(usuarioStr) : null;
+        } catch (error) {
+            return null;
+        }
     }
 };
