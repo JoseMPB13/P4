@@ -32,24 +32,93 @@ class ReporteService:
     """
 
     @staticmethod
+    def _reporte_a_dict(reporte: ReporteModel) -> dict:
+        """
+        Comentario en español: Función auxiliar para convertir un objeto ORM ReporteModel 
+        a un diccionario estructurado apto para serialización JSON. Esta selección es segura 
+        ya que utiliza campos específicos y no expone el hashed_password de los usuarios relacionados.
+        """
+        return {
+            "id": reporte.id,
+            "titulo": reporte.titulo,
+            "descripcion": reporte.descripcion,
+            "tipo_problema": reporte.tipo_problema,
+            "ubicacion": reporte.ubicacion,
+            "imagen_url": reporte.imagen_url,
+            "prioridad": reporte.prioridad,
+            "estado": reporte.estado,
+            "creado_en": reporte.creado_en.isoformat() if isinstance(reporte.creado_en, datetime) else reporte.creado_en,
+            "usuario_id": reporte.usuario_id,
+            "asignado_a": reporte.asignado_a,
+            "usuario": {
+                "id": reporte.usuario.id,
+                "email": reporte.usuario.email,
+                "nombre": reporte.usuario.nombre,
+                "rol": reporte.usuario.rol
+            } if reporte.usuario else None,
+            "tecnico": {
+                "id": reporte.tecnico.id,
+                "email": reporte.tecnico.email,
+                "nombre": reporte.tecnico.nombre,
+                "rol": reporte.tecnico.rol
+            } if reporte.tecnico else None
+        }
+
+    @staticmethod
     def listar_todos(db: Session) -> List[ReporteModel]:
         """
-        Retorna la lista de todos los reportes registrados en la base de datos relacional.
+        Retorna la lista de todos los reportes registrados. 
+        Comentario en español: Lógica de caché de lectura: primero consulta Redis para evitar
+        consultas repetidas a la base de datos de Supabase. Si no existe, realiza el query y guarda en caché.
         """
+        clave_cache = "study:reportes:all"
+        try:
+            redis_client = get_redis_client()
+            cached_data = redis_client.get(clave_cache)
+            if cached_data:
+                logger.info("📡 [REDIS CACHE] Hit en listar_todos. Retornando datos desde caché.")
+                return json.loads(cached_data)
+        except Exception as err:
+            # Resiliencia: Si falla Redis, la API continúa operando (Fail-Open)
+            logger.error(f"📡 [REDIS CACHE ERROR] Falló la lectura de caché en listar_todos: {err}")
+
         logger.info("Servicio: Listando todos los reportes desde la base de datos.")
-        # Comentario en español: Usamos joinedload para traer las relaciones de usuario y técnico en un solo query (Eager Loading)
-        return db.query(ReporteModel).options(
+        # Carga ansiosa (joinedload) para prevenir problemas de N+1 queries al resolver relaciones en Pydantic
+        reportes = db.query(ReporteModel).options(
             joinedload(ReporteModel.usuario),
             joinedload(ReporteModel.tecnico)
         ).all()
 
+        try:
+            redis_client = get_redis_client()
+            # Serializamos la lista de objetos ORM a un formato JSON serializable seguro
+            datos_serializados = [ReporteService._reporte_a_dict(r) for r in reportes]
+            # Guardamos en caché por 1 hora (3600 segundos) para optimizar accesos frecuentes
+            redis_client.setex(clave_cache, 3600, json.dumps(datos_serializados))
+            logger.info("📡 [REDIS CACHE] Datos almacenados en caché exitosamente.")
+        except Exception as err:
+            logger.error(f"📡 [REDIS CACHE ERROR] Falló la escritura en caché en listar_todos: {err}")
+
+        return reportes
+
     @staticmethod
     def obtener_por_id(db: Session, id: int) -> ReporteModel:
         """
-        Busca un reporte por su ID único en la base de datos y lanza HTTPException 404 si no existe.
+        Busca un reporte por su ID.
+        Comentario en español: Verifica en la caché de Redis la existencia del reporte individual
+        bajo el patrón de clave 'study:reportes:{id}'. Si no existe, se consulta en la base de datos relacional.
         """
+        clave_cache = f"study:reportes:{id}"
+        try:
+            redis_client = get_redis_client()
+            cached_data = redis_client.get(clave_cache)
+            if cached_data:
+                logger.info(f"📡 [REDIS CACHE] Hit en obtener_por_id para ID: {id}. Retornando desde caché.")
+                return json.loads(cached_data)
+        except Exception as err:
+            logger.error(f"📡 [REDIS CACHE ERROR] Falló la lectura de caché para ID {id}: {err}")
+
         logger.info(f"Servicio: Buscando reporte con ID: {id} en la base de datos.")
-        # Comentario en español: Usamos joinedload para optimizar la consulta individual del reporte con sus relaciones
         reporte = db.query(ReporteModel).options(
             joinedload(ReporteModel.usuario),
             joinedload(ReporteModel.tecnico)
@@ -61,55 +130,63 @@ class ReporteService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Reporte {id} no encontrado"
             )
+
+        try:
+            redis_client = get_redis_client()
+            # Mapeamos a diccionario seguro y guardamos en caché por 1 hora
+            datos_serializados = ReporteService._reporte_a_dict(reporte)
+            redis_client.setex(clave_cache, 3600, json.dumps(datos_serializados))
+            logger.info(f"📡 [REDIS CACHE] Reporte ID {id} almacenado en caché exitosamente.")
+        except Exception as err:
+            logger.error(f"📡 [REDIS CACHE ERROR] Falló la escritura en caché para ID {id}: {err}")
+
         return reporte
 
     @staticmethod
     def crear(db: Session, reporte_en: ReporteCreate) -> ReporteModel:
         """
-        Registra un reporte en la base de datos física y publica un evento en el canal 'infra:reporte:creado'.
-        Usa datetime.now(timezone.utc) estándar moderno de Python para evitar la deprecación de utcnow.
+        Registra un reporte en la base de datos física y publica un evento en el canal 'study:sesion:creada'.
+        Comentario en español: Al crear un nuevo reporte, invalidamos la caché global para obligar a leer de la base de datos
+        en la siguiente llamada a listar_todos.
         """
-        # Instanciar el modelo ORM mapeado con la estructura relacional
         nuevo_reporte = ReporteModel(
             titulo=reporte_en.titulo,
             descripcion=reporte_en.descripcion,
             tipo_problema=reporte_en.tipo_problema,
             ubicacion=reporte_en.ubicacion,
             imagen_url=reporte_en.imagen_url,
-            prioridad="media", # Prioridad por defecto requerida por las reglas de negocio
-            estado="pendiente", # Estado inicial predeterminado
+            prioridad="media", 
+            estado="pendiente", 
             creado_en=datetime.now(timezone.utc),
             usuario_id=reporte_en.usuario_id,
             asignado_a=reporte_en.asignado_a
         )
         
-        # Persistencia relacional transaccional
         db.add(nuevo_reporte)
         db.commit()
-        db.refresh(nuevo_reporte) # Recupera el ID autoincremental generado por la base de datos
+        db.refresh(nuevo_reporte)
         
         logger.info(f"Servicio: Reporte creado exitosamente en base de datos con ID: {nuevo_reporte.id}")
 
-        # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        # Definimos el canal de destino para la mensajería asíncrona
-        canal = "infra:reporte:creado"
-        
-        # Estructuramos el payload del reporte a un formato serializable
-        payload_datos = {
-            "id": nuevo_reporte.id,
-            "titulo": nuevo_reporte.titulo,
-            "descripcion": nuevo_reporte.descripcion,
-            "tipo_problema": nuevo_reporte.tipo_problema,
-            "ubicacion": nuevo_reporte.ubicacion,
-            "imagen_url": nuevo_reporte.imagen_url,
-            "prioridad": nuevo_reporte.prioridad,
-            "estado": nuevo_reporte.estado,
-            "creado_en": nuevo_reporte.creado_en.isoformat(),
-            "usuario_id": nuevo_reporte.usuario_id,
-            "asignado_a": nuevo_reporte.asignado_a
-        }
+        # === EVICCIÓN / INVALIDACIÓN DE CACHÉ ===
+        try:
+            redis_client = get_redis_client()
+            redis_client.delete("study:reportes:all")
+            logger.info("📡 [REDIS CACHE] Caché global 'study:reportes:all' invalidada tras creación.")
+        except Exception as err:
+            logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras creación: {err}")
 
-        # Estructuramos el sobre del evento según las Reglas de Oro de Mensajería
+        # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
+        canal = "study:sesion:creada"
+        
+        # Consultamos el reporte completo cargando relaciones para armar el mensaje de mensajería
+        db_reporte_completo = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.id == nuevo_reporte.id).first()
+
+        payload_datos = ReporteService._reporte_a_dict(db_reporte_completo)
+
         mensaje = {
             "tipo": "reporte:creado",
             "payload": payload_datos,
@@ -118,12 +195,10 @@ class ReporteService:
         }
 
         try:
-            # Obtener el cliente de Redis y publicar el JSON serializado
             redis_client = get_redis_client()
             redis_client.publish(canal, json.dumps(mensaje))
             logger.info(f"Servicio: Evento 'reporte:creado' publicado en el canal '{canal}'.")
         except Exception as err:
-            # Resiliencia: La falla de mensajería externa no aborta la transacción principal
             logger.error(f"Servicio: No se pudo publicar el evento en Redis: {err}")
             
         return nuevo_reporte
@@ -131,12 +206,21 @@ class ReporteService:
     @staticmethod
     def actualizar(db: Session, id: int, reporte_en: ReporteUpdate) -> ReporteModel:
         """
-        Modifica los campos permitidos del reporte y publica un evento en 'infra:reporte:actualizado'.
+        Modifica un reporte, invalida su caché e informa la actualización en 'study:sesion:actualizada'.
         """
-        # Buscar el reporte; si no existe, lanza 404 automáticamente en obtener_por_id
-        reporte = ReporteService.obtener_por_id(db, id)
+        # Obtenemos directamente de la BD con joinedload para asegurar la carga fresca de relaciones
+        reporte = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.id == id).first()
+
+        if not reporte:
+            logger.warning(f"Servicio: Reporte con ID {id} no fue encontrado para actualizar.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Reporte {id} no encontrado"
+            )
         
-        # Aplicar modificaciones parciales si están presentes en la petición
         if reporte_en.prioridad is not None:
             reporte.prioridad = reporte_en.prioridad
         if reporte_en.estado is not None:
@@ -144,29 +228,24 @@ class ReporteService:
         if reporte_en.asignado_a is not None:
             reporte.asignado_a = reporte_en.asignado_a
             
-        # Guardar cambios y refrescar el estado del objeto ORM
         db.commit()
         db.refresh(reporte)
         
         logger.info(f"Servicio: Reporte ID {id} actualizado en base de datos.")
 
-        # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        canal = "infra:reporte:actualizado"
-        
-        # Mapeamos los datos actualizados a un diccionario serializable
-        payload_datos = {
-            "id": reporte.id,
-            "titulo": reporte.titulo,
-            "descripcion": reporte.descripcion,
-            "tipo_problema": reporte.tipo_problema,
-            "ubicacion": reporte.ubicacion,
-            "imagen_url": reporte.imagen_url,
-            "prioridad": reporte.prioridad,
-            "estado": reporte.estado,
-            "creado_en": reporte.creado_en.isoformat()
-        }
+        # === EVICCIÓN / INVALIDACIÓN DE CACHÉ ===
+        try:
+            redis_client = get_redis_client()
+            redis_client.delete("study:reportes:all")
+            redis_client.delete(f"study:reportes:{id}")
+            logger.info(f"📡 [REDIS CACHE] Cachés invalidadas para reporte ID {id} y listado global tras actualización.")
+        except Exception as err:
+            logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras actualización: {err}")
 
-        # Sobre de mensajería estructurado
+        # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
+        canal = "study:sesion:actualizada"
+        payload_datos = ReporteService._reporte_a_dict(reporte)
+
         mensaje = {
             "tipo": "reporte:actualizado",
             "payload": payload_datos,
@@ -186,13 +265,28 @@ class ReporteService:
     @staticmethod
     def eliminar(db: Session, id: int) -> bool:
         """
-        Elimina físicamente un reporte de la base de datos. Si no existe, lanza 404.
+        Elimina físicamente el reporte e invalida sus cachés correspondientes de Redis.
         """
-        # Validar existencia (lanza 404 si no existe)
-        reporte = ReporteService.obtener_por_id(db, id)
+        reporte = db.query(ReporteModel).filter(ReporteModel.id == id).first()
+        if not reporte:
+            logger.warning(f"Servicio: Reporte con ID {id} no fue encontrado para eliminar.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Reporte {id} no encontrado"
+            )
         
         db.delete(reporte)
         db.commit()
         
         logger.info(f"Servicio: Reporte ID {id} eliminado físicamente de la base de datos.")
+
+        # === EVICCIÓN / INVALIDACIÓN DE CACHÉ ===
+        try:
+            redis_client = get_redis_client()
+            redis_client.delete("study:reportes:all")
+            redis_client.delete(f"study:reportes:{id}")
+            logger.info(f"📡 [REDIS CACHE] Cachés invalidadas para reporte ID {id} y listado global tras eliminación.")
+        except Exception as err:
+            logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras eliminación: {err}")
+
         return True
