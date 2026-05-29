@@ -178,7 +178,8 @@ async def add_security_headers(request: Request, call_next):
        previniendo ataques Man-in-the-Middle y degradación de seguridad (SSL Stripping).
     """
     response = await call_next(request)
-    response.headers["X-Frame-Options"] = "DENY"
+    # Comentario en español: Cambiado de DENY a SAMEORIGIN según el checklist para permitir uso de marcos internos del mismo dominio
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Content-Security-Policy"] = (
