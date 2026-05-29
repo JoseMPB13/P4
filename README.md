@@ -138,9 +138,9 @@ Al crear un nuevo **Web Service** en Render, utiliza la siguiente configuración
     ```
 *   **Start Command (Comando de Arranque):**
     ```bash
-    uvicorn app.main:app --host 0.0.0.0 --port 8000
+    uvicorn app.main:app --host 0.0.0.0 --port $PORT
     ```
-    *(Nota: El servidor lee de forma segura e interna la variable `PORT` proporcionada dinámicamente por la plataforma de Render, ignorando el valor por defecto si se especifica en el entorno de producción).*
+    *(Nota: Se usa el comando con `--port $PORT` para permitir que Uvicorn asocie la interfaz de red dinámicamente al puerto asignado por Render y evitar caídas por timeout de health check. En entornos locales o fallbacks, el código de main.py prioriza el puerto del entorno o el valor configurado).*
 
 ### 🔑 Variables de Entorno Requeridas (Environment Variables)
 Configura las siguientes variables en la sección **Environment** en Render:
