@@ -15,7 +15,8 @@ import logging
 from datetime import datetime, timezone
 from typing import List
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+# Comentario en español: Importamos joinedload para optimizar las consultas relacionales y evitar el problema N+1.
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.reporte import ReporteModel
 from app.schemas.reporte import ReporteCreate, ReporteUpdate
@@ -36,7 +37,11 @@ class ReporteService:
         Retorna la lista de todos los reportes registrados en la base de datos relacional.
         """
         logger.info("Servicio: Listando todos los reportes desde la base de datos.")
-        return db.query(ReporteModel).all()
+        # Comentario en español: Usamos joinedload para traer las relaciones de usuario y técnico en un solo query (Eager Loading)
+        return db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).all()
 
     @staticmethod
     def obtener_por_id(db: Session, id: int) -> ReporteModel:
@@ -44,7 +49,11 @@ class ReporteService:
         Busca un reporte por su ID único en la base de datos y lanza HTTPException 404 si no existe.
         """
         logger.info(f"Servicio: Buscando reporte con ID: {id} en la base de datos.")
-        reporte = db.query(ReporteModel).filter(ReporteModel.id == id).first()
+        # Comentario en español: Usamos joinedload para optimizar la consulta individual del reporte con sus relaciones
+        reporte = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.id == id).first()
         
         if not reporte:
             logger.warning(f"Servicio: Reporte con ID {id} no fue encontrado.")

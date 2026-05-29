@@ -12,6 +12,9 @@ en español.
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator, ConfigDict
+# Comentario en español: Importamos UsuarioResponse de forma segura para serializar relaciones de usuario
+# sin exponer la contraseña hashed_password del usuario creador o técnico asignado.
+from app.schemas.usuario import UsuarioResponse
 
 class ReporteBase(BaseModel):
     """
@@ -141,6 +144,11 @@ class ReporteResponse(ReporteBase):
     creado_en: datetime = Field(..., description="Fecha y hora exactas de creación del reporte en el servidor")
     usuario_id: int = Field(..., description="Identificador del estudiante creador del reporte")
     asignado_a: Optional[int] = Field(None, description="Identificador del técnico de mantenimiento asignado")
+
+    # Comentarios en español: Agregamos campos para incrustar las relaciones del autor y técnico asignado,
+    # correspondientes al 'include: { autor: true }' de Prisma en el esquema relacional.
+    usuario: Optional[UsuarioResponse] = Field(None, description="Usuario/Autor que creó la incidencia")
+    tecnico: Optional[UsuarioResponse] = Field(None, description="Técnico de soporte asignado al reporte")
 
     # Configuración de Pydantic V2 para soportar la carga desde modelos ORM (como SQLAlchemy)
     model_config = ConfigDict(from_attributes=True)
