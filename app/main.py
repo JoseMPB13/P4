@@ -245,6 +245,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
+@app.exception_handler(json.JSONDecodeError)
+async def json_decode_exception_handler(request: Request, exc: json.JSONDecodeError):
+    # Comentario en español: Capturamos fallos en decodificación de JSON (ej: cuerpo de petición vacío o inválido)
+    # y respondemos con un HTTP 400 Bad Request semántico controlado, previniendo caídas imprevistas (BUG-001).
+    logger.warning(f"Error de decodificación JSON en {request.url.path}: {str(exc)}")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "error": "El cuerpo de la petición no es un JSON válido o está vacío.",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "ruta": request.url.path
+        }
+    )
+
 @app.exception_handler(Exception)
 async def global_unexpected_exception_handler(request: Request, exc: Exception):
     logger.error(f"Error no controlado: {str(exc)} en {request.url.path}", exc_info=True)
