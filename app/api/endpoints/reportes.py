@@ -24,6 +24,11 @@ from app.services.reportes import ReporteService
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.usuario import UsuarioModel
+# Comentario en español: Importamos get_redis_client para validar si un token está en la lista negra
+from app.redis.client import get_redis_client
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Se inicializa el APIRouter con el prefijo '/reportes' y la etiqueta 'Reportes' para Swagger
 router = APIRouter(
@@ -50,9 +55,10 @@ def get_current_user(
     -----------------------------------------
     1. Extracción: OAuth2PasswordBearer intercepta la cabecera 'Authorization: Bearer <TOKEN>'.
        Si no existe, arroja automáticamente una excepción 401 Unauthorized.
-    2. Decodificación: Se procesa el token con 'jwt.decode' usando el SECRET y ALGORITHM.
+    2. Validación de Lista Negra: Se verifica en Redis si el token ha sido invalidado por Logout.
+    3. Decodificación: Se procesa el token con 'jwt.decode' usando el SECRET y ALGORITHM.
        Si el token expiró, está mal formado o alterado, se lanza una excepción de PyJWT (InvalidTokenError).
-    3. Consulta de Integridad: Se extrae el claim del correo ('sub') y se busca el registro en
+    4. Consulta de Integridad: Se extrae el claim del correo ('sub') y se busca el registro en
        la base de datos. Si el usuario no existe, el token no es válido.
     """
     credenciales_exception = HTTPException(
@@ -60,6 +66,19 @@ def get_current_user(
         detail="No se pudo validar la firma del token o ha expirado.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # Comentario en español: Verificamos de forma segura y resiliente si el token está en la lista negra de Redis (Logout)
+    try:
+        redis_client = get_redis_client()
+        if redis_client.exists(f"blacklist:{token}"):
+            logger.warning("Intento de acceso denegado: Token se encuentra en la lista negra (Blacklist).")
+            raise credenciales_exception
+    except HTTPException:
+        raise
+    except Exception as err:
+        # En caso de error de conexión con Redis, registramos pero permitimos pasar (Fail-Open)
+        logger.error(f"Error al verificar la lista negra de tokens en Redis: {err}")
+
     try:
         # Decodificar el JWT y validar su expiración de forma automática
         payload = jwt.decode(

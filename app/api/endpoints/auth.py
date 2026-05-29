@@ -9,18 +9,30 @@ Maneja códigos de estado HTTP semánticos y comentarios académicos explicativo
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+import jwt
+from jwt.exceptions import InvalidTokenError
+from datetime import datetime, timezone
+import logging
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.usuario import UsuarioModel
 from app.schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioResponse, Token
 from app.services.auth import AuthService
+from app.redis.client import get_redis_client
+
+logger = logging.getLogger(__name__)
 
 # Inicializar el enrutador de autenticación con la etiqueta para OpenAPI/Swagger
 router = APIRouter(
     prefix="/auth",
     tags=["Autenticación"]
 )
+
+# Esquema para extraer el token JWT Bearer desde la cabecera 'Authorization' en el logout
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 @router.post(
     "/register",
@@ -111,3 +123,51 @@ def iniciar_sesion(payload: UsuarioLogin, db: Session = Depends(get_db)):
         access_token=access_token,
         token_type="bearer"
     )
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="Cerrar sesión del usuario",
+    description="Invalida el token JWT actual agregándolo a la lista negra (blacklist) de Redis con un tiempo de expiración automático (TTL) igual al tiempo restante de validez del token."
+)
+def cerrar_sesion(
+    token: str = Depends(oauth2_scheme),
+    redis_client = Depends(get_redis_client)
+):
+    """
+    Controlador para invalidar tokens de acceso JWT tras el logout del usuario.
+    
+    Comentario en español:
+    1. Extraemos la fecha de expiración del payload del token sin levantar error si ya expiró 
+       (si ya expiró no es necesario hacer nada, pero si sigue activo se lee el claim 'exp').
+    2. Calculamos el tiempo de vida restante (TTL) del token respecto a la hora del servidor UTC.
+    3. Si el TTL es mayor a 0, guardamos en Redis f'blacklist:{token}' con expiración automática.
+       Esto simula el comportamiento de invalidación dinámica de tokens de Express/Node.js en Redis.
+    """
+    try:
+        # Decodificar el token sin validar la expiración temporal de forma estricta (queremos leer 'exp' incluso si está cerca de expirar)
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+            options={"verify_signature": True} # Siempre verificamos la firma para evitar falsificaciones
+        )
+        
+        exp = payload.get("exp")
+        if exp:
+            ahora = datetime.now(timezone.utc).timestamp()
+            ttl = int(exp - ahora)
+            
+            # Solo guardamos en la lista negra si el token aún no ha expirado
+            if ttl > 0:
+                redis_client.setex(f"blacklist:{token}", ttl, "true")
+                logger.info("Logout: Token agregado a la lista negra de Redis exitosamente.")
+                return {"mensaje": "Sesión cerrada de manera exitosa. Token invalidado."}
+    except Exception as err:
+        logger.error(f"Logout: Error al decodificar o almacenar token en lista negra: {err}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no válido o alterado criptográficamente."
+        )
+        
+    return {"mensaje": "Sesión cerrada de manera exitosa."}
