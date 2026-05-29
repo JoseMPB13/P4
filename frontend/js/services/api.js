@@ -32,9 +32,19 @@ export async function apiFetch(ruta, opciones = {}) {
     if (token && ["POST", "PUT", "DELETE"].includes(metodo)) {
         opciones.headers["Authorization"] = `Bearer ${token}`;
     }
-
     // Ejecutar la petición utilizando la función fetch nativa
     const respuesta = await fetch(url, opciones);
+
+    // Interceptar de forma reactiva respuestas 401 (Sesión Expirada o Inválida)
+    if (respuesta.status === 401) {
+        console.warn("⚠️ [API Interceptor] Error 401 detectado. Wiping credentials and reloading...");
+        sessionStorage.removeItem("token");
+        sessionStorage.removeItem("token_type");
+        sessionStorage.removeItem("usuario");
+        
+        // Recargar la ventana para forzar la redirección del Router SPA al AuthView
+        window.location.reload();
+    }
 
     return respuesta;
 }

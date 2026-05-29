@@ -430,3 +430,283 @@ textarea.form-control-minimal {
     display: inline-block;
     vertical-align: middle;
 }
+
+/* =========================================================================
+   👁️ UTILIDADES Y VISIBILIDAD
+   ========================================================================= */
+.d-none {
+    display: none !important;
+}
+
+/* =========================================================================
+   📡 ESTILOS PARA WEBSOCKET BADGE EN NAVBAR
+   ========================================================================= */
+.ws-badge-container {
+    display: inline-flex;
+    align-items: center;
+}
+
+.ws-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.8rem;
+    border-radius: 9999px;
+    font-family: var(--font-sans);
+    font-size: 0.725rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+/* Conectado: Verde Esmeralda (HSL) */
+.status-connected {
+    background-color: hsla(150, 80%, 40%, 0.1);
+    color: hsl(150, 80%, 45%);
+    border-color: hsla(150, 80%, 40%, 0.2);
+}
+.status-connected .status-dot {
+    background-color: hsl(150, 80%, 45%);
+    box-shadow: 0 0 8px hsl(150, 80%, 45%);
+    animation: pulse-green 2s infinite;
+}
+
+/* Desconectado: Rojo Coral (HSL) */
+.status-disconnected {
+    background-color: hsla(0, 84%, 60%, 0.1);
+    color: hsl(0, 84%, 60%);
+    border-color: hsla(0, 84%, 60%, 0.2);
+}
+.status-disconnected .status-dot {
+    background-color: hsl(0, 84%, 60%);
+    box-shadow: 0 0 8px hsl(0, 84%, 60%);
+}
+
+/* Conectando: Ámbar/Naranja (HSL) */
+.status-connecting {
+    background-color: hsla(38, 92%, 50%, 0.1);
+    color: hsl(38, 92%, 50%);
+    border-color: hsla(38, 92%, 50%, 0.2);
+}
+.status-connecting .status-dot {
+    background-color: hsl(38, 92%, 50%);
+    animation: pulse-orange 1.5s infinite;
+}
+
+@keyframes pulse-green {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 hsla(150, 80%, 45%, 0.6); }
+    70% { transform: scale(1); box-shadow: 0 0 0 5px hsla(150, 80%, 45%, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 hsla(150, 80%, 45%, 0); }
+}
+
+@keyframes pulse-orange {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 hsla(38, 92%, 50%, 0.6); }
+    70% { transform: scale(1); box-shadow: 0 0 0 5px hsla(38, 92%, 50%, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 hsla(38, 92%, 50%, 0); }
+}
+
+/* =========================================================================
+   🔔 FEED DE MULTI-NOTIFICACIONES WEBSOCKET/REDIS (GLASSMORPHISM)
+   ========================================================================= */
+.notifications-feed {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 380px;
+    width: calc(100% - 4rem);
+    pointer-events: none;
+}
+
+.notification-card {
+    pointer-events: auto;
+    background: rgba(17, 24, 39, 0.85); /* Dark base */
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    display: flex;
+    gap: 0.9rem;
+    align-items: flex-start;
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.notification-card.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.notification-card.fade-out {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+    transition: all 0.3s ease;
+}
+
+.notif-icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.notif-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.notif-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+.notif-text {
+    font-family: var(--font-sans);
+    font-size: 0.775rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.notif-time {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+/* --- Variaciones de Evento Basadas en HSL --- */
+
+/* 1. reporte:creado -> Azul Info */
+.notif-creado {
+    border-left: 4px solid hsl(210, 100%, 50%);
+}
+.notif-creado .notif-icon-container {
+    background: hsla(210, 100%, 50%, 0.12);
+    border: 1px solid hsla(210, 100%, 50%, 0.2);
+    color: hsl(210, 100%, 60%);
+}
+
+/* 2. reporte:critico -> Rojo Critico Parpadeante */
+.notif-critico {
+    border-left: 4px solid hsl(0, 84%, 55%);
+    background: rgba(239, 68, 68, 0.05); /* fondo sutilmente rojizo */
+    animation: border-alert-flash 2s infinite ease-in-out, show 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.notif-critico .notif-icon-container {
+    background: hsla(0, 84%, 55%, 0.15);
+    border: 1px solid hsla(0, 84%, 55%, 0.3);
+    color: hsl(0, 84%, 60%);
+    animation: icon-critical-blink 1.2s infinite ease-in-out;
+}
+
+/* 3. reporte:cambio_estado -> Verde Esmeralda */
+.notif-cambio-estado {
+    border-left: 4px solid hsl(150, 80%, 40%);
+}
+.notif-cambio-estado .notif-icon-container {
+    background: hsla(150, 80%, 40%, 0.12);
+    border: 1px solid hsla(150, 80%, 40%, 0.2);
+    color: hsl(150, 80%, 45%);
+}
+
+/* 4. comentario:creado -> Ámbar/Amarillo */
+.notif-comentario {
+    border-left: 4px solid hsl(38, 92%, 50%);
+}
+.notif-comentario .notif-icon-container {
+    background: hsla(38, 92%, 50%, 0.12);
+    border: 1px solid hsla(38, 92%, 50%, 0.2);
+    color: hsl(38, 92%, 55%);
+}
+
+/* --- Animaciones del Feed --- */
+@keyframes icon-critical-blink {
+    0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 2px hsl(0, 84%, 60%)); }
+    50% { transform: scale(1.15); opacity: 0.6; filter: none; }
+}
+
+@keyframes border-alert-flash {
+    0%, 100% { border-left-color: hsl(0, 84%, 55%); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+    50% { border-left-color: hsl(0, 80%, 25%); box-shadow: 0 10px 30px rgba(239, 68, 68, 0.15); }
+}
+
+/* =========================================================================
+   📷 CONTENEDOR MULTIMEDIA Y CARGA DE VISTA PREVIA
+   ========================================================================= */
+.media-upload-wrapper {
+    width: 100%;
+}
+
+.preview-container {
+    position: relative;
+    margin-top: 0.75rem;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-body);
+    max-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+
+.preview-image {
+    max-width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    display: block;
+}
+
+.btn-remove-preview {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgba(9, 13, 22, 0.85);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    line-height: 1;
+    transition: var(--transition-smooth);
+    z-index: 10;
+}
+
+.btn-remove-preview:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+    transform: scale(1.1);
+}
+

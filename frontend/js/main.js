@@ -14,13 +14,12 @@
  *   - Rol: "estudiante" -> Inicializa e inyecta `EstudianteDashboard`.
  *   - Rol: "personal_mantenimiento" o "personal" -> Inicializa e inyecta `PersonalDashboard`.
  */
-
 import { authService } from "./services/authService.js";
 import { LoginView } from "./components/LoginView.js";
 import { AdminDashboard } from "./components/AdminDashboard.js";
 import { EstudianteDashboard } from "./components/EstudianteDashboard.js";
 import { PersonalDashboard } from "./components/PersonalDashboard.js";
-
+import { socketService } from "./services/websocket.js";
 /**
  * Función enrutadora principal que evalúa el estado y renderiza la vista correspondiente.
  */
@@ -72,6 +71,11 @@ async function renderApp() {
                 <span>UPDS <span style="font-weight: 300; opacity: 0.8;">Infraestructura</span></span>
             </div>
             <ul class="nav-links">
+                <li class="ws-badge-container">
+                    <span id="ws-badge" class="ws-badge status-disconnected">
+                        <span class="status-dot"></span> Desconectado
+                    </span>
+                </li>
                 <li>
                     <span style="font-size: 0.875rem; color: var(--text-secondary);">
                         Hola, <strong>${usuario.nombre}</strong>
@@ -89,10 +93,14 @@ async function renderApp() {
         const btnLogout = document.getElementById("btn-logout");
         if (btnLogout) {
             btnLogout.addEventListener("click", async () => {
+                socketService.desconectar();
                 await authService.logout();
                 window.location.reload();
             });
         }
+
+        // Inicializar conexión WebSocket en tiempo real
+        socketService.inicializar();
     }
 
     // Limpiar el contenedor principal para pintar el Dashboard específico

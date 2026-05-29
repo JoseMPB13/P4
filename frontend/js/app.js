@@ -7,7 +7,7 @@
  */
 
 // URL base del backend de la API (por defecto Uvicorn corre en el puerto 8000)
-const API_URL = "http://localhost:8000";
+const API_URL = "http://localhost:8000/api";
 
 document.addEventListener("DOMContentLoaded", () => {
     inicializarFormularios();
@@ -131,7 +131,7 @@ function inicializarFormularios() {
  */
 async function cargarEstadisticas() {
     try {
-        const respuesta = await fetch(`${API_URL}/api/reportes/`);
+        const respuesta = await fetch(`${API_URL}/reportes/`);
         if (!respuesta.ok) return;
 
         const reportes = await respuesta.json();
