@@ -20,7 +20,7 @@ Explicación del Flujo de Peticiones y Middlewares:
 """
 
 import uvicorn
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -28,6 +28,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from datetime import datetime, timezone
 import logging
+# Comentario en español: Importamos threading y asyncio para correr la escucha de Redis Pub/Sub en segundo plano
+import threading
+import asyncio
+import json
 
 from app.core.config import settings
 from app.api.endpoints.reportes import router as reportes_router
@@ -54,6 +58,99 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# =========================================================================
+# 📡 GESTOR DE CONEXIONES WEBSOCKET (Equivalente a Socket.io)
+# =========================================================================
+
+class ConnectionManager:
+    """
+    Administrador de conexiones WebSocket para retransmitir eventos en tiempo real
+    a los clientes web conectados.
+    """
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.info(f"WebSocket: Cliente conectado. Total conexiones activas: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            logger.info(f"WebSocket: Cliente desconectado. Total conexiones activas: {len(self.active_connections)}")
+
+    async def broadcast(self, message: str):
+        """
+        Retransmite un mensaje de texto a todos los WebSockets conectados.
+        """
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message)
+            except Exception as err:
+                logger.error(f"WebSocket: Error al enviar mensaje a un cliente: {err}")
+
+manager = ConnectionManager()
+
+def redis_pubsub_listener():
+    """
+    Función del hilo de fondo que se suscribe a los eventos 'study:*' de Redis Pub/Sub
+    y llama al broadcast de WebSockets de manera segura sobre el bucle de eventos.
+    """
+    logger.info("📡 [Redis Listener Thread] Iniciando escucha en el patrón 'study:*'...")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        redis_client = get_redis_client()
+        pubsub_obj = redis_client.pubsub()
+        pubsub_obj.psubscribe("study:*")
+        
+        # Escuchamos bloqueando el hilo de fondo
+        for mensaje in pubsub_obj.listen():
+            if mensaje["type"] == "pmessage":
+                data_str = mensaje["data"]
+                if isinstance(data_str, bytes):
+                    data_str = data_str.decode("utf-8")
+                
+                logger.info(f"📡 [Redis Listener Thread] Mensaje recibido de Redis Pub/Sub: {data_str}")
+                # Hacemos broadcast llamando de manera segura al loop de eventos principal de la aplicación
+                asyncio.run_coroutine_threadsafe(manager.broadcast(data_str), main_loop)
+    except Exception as err:
+        logger.error(f"📡 [Redis Listener Thread] Error crítico en el hilo de fondo: {err}")
+
+# Bucle de eventos principal que guardaremos al arrancar
+main_loop = None
+
+@app.on_event("startup")
+def startup_event():
+    """
+    Evento de inicio de FastAPI. Captura el event loop principal e inicia el hilo
+    de fondo para la escucha asíncrona de Redis Pub/Sub.
+    """
+    global main_loop
+    main_loop = asyncio.get_event_loop()
+    
+    thread = threading.Thread(target=redis_pubsub_listener, daemon=True)
+    thread.start()
+    logger.info("📡 [Startup] Hilo secundario para Redis Pub/Sub iniciado exitosamente.")
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    Ruta de WebSocket para recibir conexiones en tiempo real.
+    """
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Espera mensajes del cliente (para pings o mantener activa la conexión)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as err:
+        logger.error(f"WebSocket: Error inesperado en conexión: {err}")
+        manager.disconnect(websocket)
 
 
 

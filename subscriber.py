@@ -66,9 +66,9 @@ def iniciar_suscriptor():
         pubsub_obj = client.pubsub()
 
         # 4. Suscribirse por patrón utilizando el wildcard (*)
-        # Esto captura simultáneamente todos los canales bajo el espacio 'infra:',
-        # por ejemplo: 'infra:reporte:creado' e 'infra:reporte:actualizado'
-        patron = "infra:*"
+        # Esto captura simultáneamente todos los canales bajo el espacio 'study:',
+        # por ejemplo: 'study:sesion:creada' y 'study:sesion:actualizada'
+        patron = "study:*"
         pubsub_obj.psubscribe(patron)
         logger.info(f"🔍 [Redis Sub] Escuchando patrón '{patron}' en canales de Upstash...")
         logger.info("💡 Esperando eventos entrantes. Presiona Ctrl+C para salir.\n")
