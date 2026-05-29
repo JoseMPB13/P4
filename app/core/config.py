@@ -26,6 +26,11 @@ class Settings(BaseSettings):
         default="postgresql://postgres:PENDIENTE@localhost:5432/infra_db"
     )
     
+    # URL de conexión directa para migraciones/sesión directa (equivalente a DIRECT_URL)
+    DIRECT_URL: str = Field(
+        default="postgresql://postgres:PENDIENTE@localhost:5432/infra_db"
+    )
+    
     # URL de conexión al servidor Redis
     REDIS_URL: str = Field(
         default="redis://default:PENDIENTE@PENDIENTE:6379"
