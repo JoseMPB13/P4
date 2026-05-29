@@ -2,10 +2,10 @@
 /**
  * Componente AuthModal.
  * Responsabilidad: Inyectar la interfaz del modal de autenticación (Login/Registro)
- * en el DOM y gestionar el envío de formularios y almacenamiento del token JWT.
+ * en el DOM y gestionar el envío de formularios mediante el servicio de autenticación.
  */
 
-import { apiService } from "../services/api.js";
+import { authService } from "../services/authService.js";
 
 export class AuthModal {
     /**
@@ -138,7 +138,7 @@ export class AuthModal {
     }
 
     /**
-     * Registra los eventos submit de los formularios e interactúa con la API.
+     * Registra los eventos submit de los formularios e interactúa con el servicio de autenticación.
      */
     inicializarEventos() {
         const loginForm = document.getElementById("login-form");
@@ -161,12 +161,8 @@ export class AuthModal {
                 this.limpiarAlerta();
 
                 try {
-                    // Llamamos al servicio de API
-                    const data = await apiService.login(email, password);
-
-                    // Almacenamos el token en SessionStorage
-                    sessionStorage.setItem("token", data.access_token);
-                    sessionStorage.setItem("token_type", data.token_type);
+                    // Llamamos al servicio de Autenticación
+                    await authService.login(email, password);
 
                     this.mostrarAlerta("success", "✅ ¡Acceso concedido! Redireccionando...");
 
@@ -202,8 +198,8 @@ export class AuthModal {
                 this.limpiarAlerta();
 
                 try {
-                    // Llamamos al servicio de API
-                    await apiService.register(nombre, email, password, rol);
+                    // Llamamos al servicio de Autenticación
+                    await authService.register({ nombre, email, password, rol });
 
                     this.mostrarAlerta("success", "🎉 ¡Cuenta registrada con éxito! Inicia sesión para continuar.");
                     registerForm.reset();

@@ -5,7 +5,7 @@
  * en el contenedor correspondiente del DOM y cargar los contadores dinámicamente.
  */
 
-import { apiService } from "../services/api.js";
+import { apiFetch } from "../services/api.js";
 
 export class StatsCard {
     /**
@@ -52,7 +52,11 @@ export class StatsCard {
     async actualizarContadores() {
         try {
             // Llama al servicio API para obtener los reportes
-            const reportes = await apiService.getReportes();
+            const respuesta = await apiFetch("/reportes/");
+            if (!respuesta.ok) {
+                throw new Error("No se pudieron cargar los reportes de la API.");
+            }
+            const reportes = await respuesta.json();
 
             // Calcula métricas
             const total = reportes.length;
