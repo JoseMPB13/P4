@@ -196,17 +196,26 @@ async def add_security_headers(request: Request, call_next):
 # 1. Agregamos el Rate Limiting (más interno que CORS)
 app.add_middleware(RateLimitMiddleware)
 
-# 2. Agregamos CORS (más externo, se ejecuta primero)
-# Configurado para permitir orígenes de desarrollo típicos en React/Vite
+# 2. Agregamos CORS (más externo, se ejecuta primero en la pila de middlewares)
+# Comentario en español:
+# Configuración de CORSMiddleware en FastAPI para permitir la comunicación bidireccional y el consumo de 
+# la API desde el frontend de desarrollo local (incluyendo Live Server y frameworks como Vite o React).
+# - allow_origins: Lista de orígenes de confianza permitidos que pueden consumir los recursos del backend.
+# - allow_credentials: Habilitado en True para permitir el envío de cookies, tokens de sesión y cabeceras
+#   de autorización tipo Bearer en peticiones cruzadas.
+# - allow_methods: Permitimos todos los verbos HTTP ("*") como GET, POST, PUT, DELETE, y OPTIONS para CORS preflight.
+# - allow_headers: Permitimos todas las cabeceras HTTP ("*") enviadas por el navegador del cliente (como Authorization, Content-Type, etc).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",  # Puerto por defecto de Vite
-        "http://localhost:3000"   # Puerto común en React/Next.js
+        "http://localhost:3000",  # Puerto común de React/Next.js
+        "http://127.0.0.1:5500",  # Puerto por defecto de Live Server (IP local)
+        "http://localhost:5500"   # Puerto por defecto de Live Server (localhost)
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # =========================================================================
