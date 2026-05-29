@@ -16,7 +16,7 @@
  */
 
 import { authService } from "./services/authService.js";
-import { AuthView } from "./components/AuthView.js";
+import { LoginView } from "./components/LoginView.js";
 import { AdminDashboard } from "./components/AdminDashboard.js";
 import { EstudianteDashboard } from "./components/EstudianteDashboard.js";
 import { PersonalDashboard } from "./components/PersonalDashboard.js";
@@ -53,8 +53,8 @@ async function renderApp() {
 
         // Limpiar lienzo principal y renderizar la vista de Login/Registro
         appRoot.innerHTML = `<div id="auth-view-container"></div>`;
-        const authView = new AuthView("#auth-view-container");
-        authView.render();
+        const loginView = new LoginView("#auth-view-container");
+        loginView.render();
         return;
     }
 
