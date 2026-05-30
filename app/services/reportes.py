@@ -240,7 +240,8 @@ class ReporteService:
         return nuevo_reporte
 
     @staticmethod
-    def actualizar(db: Session, id: int, reporte_en: ReporteUpdate, autor_id: Optional[int] = None) -> ReporteModel:
+    # Comentario en español: Ajustamos autor_id para usar el tipo de unión nativo 'int | None' de Python 3.13 en lugar de 'Optional'
+    def actualizar(db: Session, id: int, reporte_en: ReporteUpdate, autor_id: int | None = None) -> ReporteModel:
         """
         Modifica un reporte, registra la trazabilidad de estados, invalida su caché e informa la actualización en Redis.
         """
