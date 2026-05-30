@@ -17,8 +17,8 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Nombre del bucket público según requerimientos
-BUCKET_NAME = "infraestructura-fotos"
+# Comentario en español: El nombre del bucket ahora se lee dinámicamente desde settings.SUPABASE_BUCKET
+# para evitar valores fijos y permitir configurarlo mediante variables de entorno (.env)
 
 def subir_imagen_a_supabase(file_bytes: bytes, file_name: str, content_type: str) -> str:
     """
@@ -48,8 +48,8 @@ def subir_imagen_a_supabase(file_bytes: bytes, file_name: str, content_type: str
             "La carga fallará si el bucket requiere políticas de seguridad (RLS)."
         )
 
-    # URL del endpoint para subir el objeto al bucket específico
-    url = f"{settings.SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{file_name}"
+    # URL del endpoint para subir el objeto al bucket específico utilizando la configuración centralizada
+    url = f"{settings.SUPABASE_URL}/storage/v1/object/{settings.SUPABASE_BUCKET}/{file_name}"
     
     headers = {
         "Authorization": f"Bearer {settings.SUPABASE_KEY}",
@@ -61,13 +61,13 @@ def subir_imagen_a_supabase(file_bytes: bytes, file_name: str, content_type: str
     req = urllib.request.Request(url, data=file_bytes, headers=headers, method="POST")
     
     try:
-        logger.info(f"Subiendo archivo '{file_name}' ({len(file_bytes)} bytes) al bucket '{BUCKET_NAME}'...")
+        logger.info(f"Subiendo archivo '{file_name}' ({len(file_bytes)} bytes) al bucket '{settings.SUPABASE_BUCKET}'...")
         with urllib.request.urlopen(req) as response:
             if response.status in (200, 201):
                 # La subida fue exitosa. Generamos la URL pública accesible.
-                # Nota aclaratoria: Asegúrese de que el bucket 'infraestructura-fotos' esté configurado
+                # Nota aclaratoria: Asegúrese de que el bucket configurado en settings.SUPABASE_BUCKET esté configurado
                 # como PÚBLICO en el panel de control de Supabase (Dashboard -> Storage -> Bucket Settings).
-                public_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{file_name}"
+                public_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{settings.SUPABASE_BUCKET}/{file_name}"
                 logger.info(f"✅ Archivo subido con éxito. URL pública: {public_url}")
                 return public_url
             else:
@@ -76,6 +76,21 @@ def subir_imagen_a_supabase(file_bytes: bytes, file_name: str, content_type: str
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
         logger.error(f"❌ Error HTTP de Supabase Storage ({e.code}): {error_body}")
+        
+        # Comentario en español: Si el error es debido a que el contenedor/bucket no existe, 
+        # emitimos una alerta explícita en consola con la recomendación de creación y levantamos una excepción amigable.
+        if "Bucket not found" in error_body:
+            logger.error(
+                f"🚨 [SUPABASE STORAGE CONFIG] El bucket '{settings.SUPABASE_BUCKET}' no fue encontrado en la nube. "
+                f"Por favor, acceda al panel de administración de Supabase -> Storage y cree un bucket con el "
+                f"nombre exacto '{settings.SUPABASE_BUCKET}' configurándolo en modo PÚBLICO."
+            )
+            raise HTTPException(
+                status_code=502,
+                detail=f"El contenedor de imágenes '{settings.SUPABASE_BUCKET}' no existe en Supabase Storage. "
+                       f"Asegúrese de haberlo creado como bucket público en el panel de Supabase."
+            )
+            
         raise HTTPException(
             status_code=502,
             detail=f"Error en Supabase Storage: {error_body}"

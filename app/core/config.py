@@ -46,6 +46,12 @@ class Settings(BaseSettings):
         default=""
     )
 
+    # Nombre del bucket o contenedor de almacenamiento en Supabase Storage
+    # Comentario en español: Variable utilizada para parametrizar de forma dinámica el nombre del bucket de fotos
+    SUPABASE_BUCKET: str = Field(
+        default="infraestructura-fotos"
+    )
+
     # Clave secreta para firmar tokens JWT (académica)
     JWT_SECRET: str = Field(
         default="supersecret_jwt_key_academic_level_2026"
