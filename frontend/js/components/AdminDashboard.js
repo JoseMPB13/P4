@@ -215,11 +215,20 @@ export class AdminDashboard {
                 auditTableBody.innerHTML = reportes.map(rep => {
                     const reporter = rep.usuario ? rep.usuario.nombre : "Anónimo";
                     
+                    const fotoHTML = rep.imagen_url ? `
+                        <a href="${rep.imagen_url}" target="_blank" title="Ver evidencia fotográfica" style="margin-left: 0.5rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem;">
+                            <i class="bi bi-image"></i> Ver Foto
+                        </a>
+                    ` : "";
+
                     return `
                         <tr>
                             <td style="font-weight: 600; color: var(--text-secondary);">#${rep.id}</td>
                             <td>
-                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.15rem;">${rep.titulo}</div>
+                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.15rem; display: flex; align-items: center;">
+                                    ${rep.titulo}
+                                    ${fotoHTML}
+                                </div>
                                 <div style="font-size: 0.75rem; color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                     ${rep.descripcion}
                                 </div>

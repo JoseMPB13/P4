@@ -125,11 +125,20 @@ export class Dashboard {
                 `;
             }
 
+            const fotoHTML = reporte.imagen_url ? `
+                <a href="${reporte.imagen_url}" target="_blank" title="Ver evidencia fotográfica" style="margin-left: 0.5rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem;">
+                    <i class="bi bi-image"></i> Ver Foto
+                </a>
+            ` : "";
+
             return `
                 <tr>
                     <td style="font-weight: 600; color: var(--text-secondary);">#${reporte.id}</td>
                     <td>
-                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${reporte.titulo}</div>
+                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem; display: flex; align-items: center;">
+                            ${reporte.titulo}
+                            ${fotoHTML}
+                        </div>
                         <div style="font-size: 0.75rem; color: var(--text-secondary); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                             ${reporte.descripcion}
                         </div>

@@ -187,10 +187,17 @@ export class ReportForm {
             const ubicacion = ubicacionEl.value.trim();
             const tipo_problema = tipoEl.value;
 
-            // Generar Object URL corto y local para cumplir con VARCHAR(255) en la base de datos
-            let imagen_url = null;
+            // Crear objeto FormData para soportar la carga multipart/form-data del archivo real
+            const formData = new FormData();
+            formData.append("titulo", titulo);
+            formData.append("descripcion", descripcion);
+            formData.append("ubicacion", ubicacion);
+            formData.append("tipo_problema", tipo_problema);
+            formData.append("usuario_id", usuarioId);
+            
+            // Adjuntar la imagen real seleccionada por el usuario si existe
             if (fileInput && fileInput.files && fileInput.files[0]) {
-                imagen_url = URL.createObjectURL(fileInput.files[0]);
+                formData.append("imagen", fileInput.files[0]);
             }
 
             this.mostrarCarga(true);
@@ -199,17 +206,7 @@ export class ReportForm {
             try {
                 const respuesta = await apiFetch("/reportes/", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        titulo,
-                        descripcion,
-                        ubicacion,
-                        tipo_problema,
-                        usuario_id: usuarioId,
-                        imagen_url: imagen_url
-                    })
+                    body: formData
                 });
 
                 const data = await respuesta.json();

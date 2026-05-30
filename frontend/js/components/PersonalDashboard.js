@@ -124,39 +124,49 @@ export class PersonalDashboard {
                 const colorBorde = esEnProceso ? "#3b82f6" : "var(--accent)";
                 const badgeClass = esEnProceso ? "badge-info" : "badge-warning";
 
-                return `
-                    <div class="flat-card" style="border-left: 4px solid ${colorBorde}; padding: 1.25rem 1.5rem; transition: background 0.2s ease;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 1rem;">
-                            <div>
-                                <span class="badge-minimal ${badgeClass}" style="margin-bottom: 0.5rem;">${item.estado.toUpperCase()}</span>
-                                <h4 style="font-weight: 700; margin: 0; font-size: 1.1rem; color: var(--text-primary);">${item.titulo}</h4>
+                        const fotoHTML = item.imagen_url ? `
+                            <div style="margin-top: 0.75rem; margin-bottom: 0.75rem; border-radius: 8px; overflow: hidden; max-height: 150px; border: 1px solid rgba(255,255,255,0.1);">
+                                <a href="${item.imagen_url}" target="_blank" title="Ver foto a tamaño completo">
+                                    <img src="${item.imagen_url}" alt="Evidencia de reporte" style="width: 100%; height: 150px; object-fit: cover; transition: opacity 0.2s; display: block;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1" />
+                                </a>
                             </div>
-                            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-                                ${!esEnProceso ? `
-                                    <button class="btn-minimal btn-outline btn-inbox-estado" data-id="${item.id}" data-estado="en proceso" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-                                        ⚙️ Trabajar
-                                    </button>
-                                ` : ""}
-                                <button class="btn-minimal btn-accent btn-inbox-estado" data-id="${item.id}" data-estado="resuelto" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; background-color: var(--accent-green); color: white;">
-                                    ✅ Resolver
-                                </button>
+                        ` : "";
+
+                        return `
+                            <div class="flat-card" style="border-left: 4px solid ${colorBorde}; padding: 1.25rem 1.5rem; transition: background 0.2s ease;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 1rem;">
+                                    <div>
+                                        <span class="badge-minimal ${badgeClass}" style="margin-bottom: 0.5rem;">${item.estado.toUpperCase()}</span>
+                                        <h4 style="font-weight: 700; margin: 0; font-size: 1.1rem; color: var(--text-primary);">${item.titulo}</h4>
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                                        ${!esEnProceso ? `
+                                            <button class="btn-minimal btn-outline btn-inbox-estado" data-id="${item.id}" data-estado="en proceso" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                                                ⚙️ Trabajar
+                                            </button>
+                                        ` : ""}
+                                        <button class="btn-minimal btn-accent btn-inbox-estado" data-id="${item.id}" data-estado="resuelto" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; background-color: var(--accent-green); color: white;">
+                                            ✅ Resolver
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; line-height: 1.4;">
+                                    ${item.descripcion}
+                                </p>
+                                
+                                ${fotoHTML}
+                                
+                                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); gap: 0.5rem; margin-top: 0.5rem;">
+                                    <span><i class="bi bi-geo-alt-fill" style="margin-right: 0.25rem;"></i> ${item.ubicacion}</span>
+                                    <span>
+                                        <i class="bi bi-person-fill" style="margin-right: 0.25rem;"></i> ${reportante} 
+                                        <span style="opacity: 0.5; margin: 0 0.25rem;">|</span> 
+                                        <i class="bi bi-clock-fill" style="margin-right: 0.25rem;"></i> ${fechaStr}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.4;">
-                            ${item.descripcion}
-                        </p>
-                        
-                        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); gap: 0.5rem;">
-                            <span><i class="bi bi-geo-alt-fill" style="margin-right: 0.25rem;"></i> ${item.ubicacion}</span>
-                            <span>
-                                <i class="bi bi-person-fill" style="margin-right: 0.25rem;"></i> ${reportante} 
-                                <span style="opacity: 0.5; margin: 0 0.25rem;">|</span> 
-                                <i class="bi bi-clock-fill" style="margin-right: 0.25rem;"></i> ${fechaStr}
-                            </span>
-                        </div>
-                    </div>
-                `;
+                        `;
             }).join("");
 
         } catch (error) {

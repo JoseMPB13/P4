@@ -36,6 +36,16 @@ class Settings(BaseSettings):
         default="redis://default:PENDIENTE@PENDIENTE:6379"
     )
 
+    # URL de Supabase para la API y Storage
+    SUPABASE_URL: str = Field(
+        default="https://sglshnnttwgjlsgkhrto.supabase.co"
+    )
+
+    # API Key o Service Role Key de Supabase para autenticación de Storage
+    SUPABASE_KEY: str = Field(
+        default=""
+    )
+
     # Clave secreta para firmar tokens JWT (académica)
     JWT_SECRET: str = Field(
         default="supersecret_jwt_key_academic_level_2026"

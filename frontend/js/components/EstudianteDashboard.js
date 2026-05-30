@@ -130,16 +130,25 @@ export class EstudianteDashboard {
                 if (reporte.estado === "en proceso") badgeClass = "badge-info";
                 if (reporte.estado === "resuelto") badgeClass = "badge-success";
 
+                const fotoHTML = reporte.imagen_url ? `
+                    <div style="margin-top: 0.75rem; margin-bottom: 0.75rem; border-radius: 8px; overflow: hidden; max-height: 150px; border: 1px solid rgba(255,255,255,0.1);">
+                        <a href="${reporte.imagen_url}" target="_blank" title="Ver foto a tamaño completo">
+                            <img src="${reporte.imagen_url}" alt="Evidencia de reporte" style="width: 100%; height: 150px; object-fit: cover; transition: opacity 0.2s; display: block;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1" />
+                        </a>
+                    </div>
+                ` : "";
+
                 return `
                     <div class="flat-card" style="border-left: 3px solid var(--accent); transition: transform 0.2s ease;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
                             <h4 style="font-weight: 700; margin: 0; font-size: 1.05rem; color: var(--text-primary);">${reporte.titulo}</h4>
                             <span class="badge-minimal ${badgeClass}">${reporte.estado.toUpperCase()}</span>
                         </div>
-                        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.4;">
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; line-height: 1.4;">
                             ${reporte.descripcion}
                         </p>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted);">
+                        ${fotoHTML}
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
                             <span><i class="bi bi-geo-alt-fill" style="margin-right: 0.25rem;"></i> ${reporte.ubicacion}</span>
                             <span><i class="bi bi-calendar3" style="margin-right: 0.25rem;"></i> ${fechaStr}</span>
                         </div>

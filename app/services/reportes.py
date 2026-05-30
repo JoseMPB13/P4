@@ -177,7 +177,7 @@ class ReporteService:
             logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras creación: {err}")
 
         # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        canal = "study:sesion:creada"
+        canal = "study:reporte_creado"
         
         # Consultamos el reporte completo cargando relaciones para armar el mensaje de mensajería
         db_reporte_completo = db.query(ReporteModel).options(
@@ -243,7 +243,7 @@ class ReporteService:
             logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras actualización: {err}")
 
         # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        canal = "study:sesion:actualizada"
+        canal = "study:reporte_actualizado"
         payload_datos = ReporteService._reporte_a_dict(reporte)
 
         mensaje = {

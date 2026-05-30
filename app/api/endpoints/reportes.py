@@ -12,15 +12,18 @@ de las rutas y delega la ejecución de la lógica operacional a ReporteService.
   a través de la dependencia de seguridad 'get_current_user'.
 """
 
-from typing import List
-from fastapi import APIRouter, status, Depends, HTTPException
+from typing import List, Optional
+from fastapi import APIRouter, status, Depends, HTTPException, Form, File, UploadFile
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy.orm import Session
+import uuid
+import os
 
 from app.schemas.reporte import ReporteCreate, ReporteUpdate, ReporteResponse
 from app.services.reportes import ReporteService
+from app.services.supabase_storage import subir_imagen_a_supabase
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.usuario import UsuarioModel
@@ -142,17 +145,68 @@ def obtener_reporte(id: int, db: Session = Depends(get_db)):
     response_model=ReporteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear un reporte",
-    description="Ruta Protegida. Requiere cabecera 'Authorization: Bearer <TOKEN>'. Crea un reporte de incidencia."
+    description="Ruta Protegida. Requiere cabecera 'Authorization: Bearer <TOKEN>'. Crea un reporte de incidencia desde Multipart/Form-Data."
 )
 def crear_reporte(
-    payload: ReporteCreate, 
+    titulo: str = Form(...),
+    descripcion: str = Form(...),
+    tipo_problema: str = Form(...),
+    ubicacion: str = Form(...),
+    usuario_id: int = Form(...),
+    asignado_a: Optional[int] = Form(None),
+    imagen: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user)
 ):
     """
-    Crea un nuevo reporte a partir de un body JSON validado por Pydantic.
+    Crea un nuevo reporte recibiendo parámetros tipo Form y un archivo opcional.
     Exige la inyección de 'current_user' para asegurar la identidad de quien reporta.
+    
+    ¿Cómo maneja FastAPI la carga de archivos con 'UploadFile'?
+    ----------------------------------------------------------
+    FastAPI expone la clase 'UploadFile' que almacena en memoria los archivos de pequeño
+    tamaño y en un archivo temporal en disco si exceden el límite, garantizando la
+    estabilidad de la memoria del servidor. Mediante 'imagen.file.read()' obtenemos
+    directamente los bytes del stream de archivo.
     """
+    imagen_url = None
+    if imagen is not None and imagen.filename:
+        # Validación de seguridad del tipo de contenido (MIME type)
+        if not imagen.content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo proporcionado debe ser una imagen con formato válido (image/*)."
+            )
+        
+        # Generación de nombre único para evitar colisiones
+        ext = os.path.splitext(imagen.filename)[1]
+        if not ext or len(ext) > 10:
+            ext = ".jpg"
+        file_name = f"{uuid.uuid4()}{ext}"
+        
+        try:
+            file_bytes = imagen.file.read()
+        except Exception as e:
+            logger.error(f"Error al leer bytes del archivo subido: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se pudo leer el archivo de imagen adjunto."
+            )
+            
+        # Subir los bytes directamente a Supabase Storage
+        imagen_url = subir_imagen_a_supabase(file_bytes, file_name, imagen.content_type)
+        
+    # Construcción de payload e invocación del servicio
+    payload = ReporteCreate(
+        titulo=titulo,
+        descripcion=descripcion,
+        tipo_problema=tipo_problema,
+        ubicacion=ubicacion,
+        usuario_id=usuario_id,
+        imagen_url=imagen_url,
+        asignado_a=asignado_a
+    )
+    
     return ReporteService.crear(db, payload)
 
 
