@@ -17,7 +17,9 @@ from fastapi import APIRouter, status, Depends, HTTPException, Form, File, Uploa
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from app.models.reporte import ReporteModel
+import json
 import uuid
 import os
 
@@ -120,7 +122,36 @@ def listar_reportes(db: Session = Depends(get_db)):
     ¿Por qué es público?: Cualquier persona de la comunidad universitaria puede listar
     los reportes e incidencias existentes sin necesidad de estar logueado.
     """
-    return ReporteService.listar_todos(db)
+    # Comentario en español: 1. Comprobar si existe la clave 'cache:reportes' en Redis (Flujo Cache Hit)
+    try:
+        redis_client = get_redis_client()
+        cached_data = redis_client.get("cache:reportes")
+        if cached_data:
+            logger.info("📡 [REDIS CACHE] Hit en endpoint GET / - Retornando datos desde 'cache:reportes'.")
+            return json.loads(cached_data)
+    except Exception as err:
+        # En caso de error de conexión con Redis, registramos pero permitimos pasar (Fail-Open)
+        logger.error(f"❌ [REDIS ERROR] Falló la lectura de caché 'cache:reportes': {err}")
+
+    # Comentario en español: 2. Flujo Cache Miss: realizar consulta a PostgreSQL en Supabase
+    logger.info("📡 [REDIS CACHE] Miss en endpoint GET / - Consultando base de datos relacional.")
+    reportes = db.query(ReporteModel).options(
+        joinedload(ReporteModel.usuario),
+        joinedload(ReporteModel.tecnico)
+    ).all()
+
+    # Comentario en español: 3. Serializar a formato compatible (lista de diccionarios)
+    datos_serializados = [ReporteService._reporte_a_dict(r) for r in reportes]
+
+    # Comentario en español: 4. Guardar datos serializados en Redis con un TTL de 300 segundos
+    try:
+        redis_client = get_redis_client()
+        redis_client.setex("cache:reportes", 300, json.dumps(datos_serializados))
+        logger.info("📡 [REDIS CACHE] Datos guardados en la clave 'cache:reportes' con TTL de 300 segundos.")
+    except Exception as err:
+        logger.error(f"❌ [REDIS ERROR] Falló la escritura en caché 'cache:reportes': {err}")
+
+    return datos_serializados
 
 
 @router.get(
@@ -207,7 +238,18 @@ def crear_reporte(
         asignado_a=asignado_a
     )
     
-    return ReporteService.crear(db, payload)
+    # Se ejecuta la creación y persistencia (commit) a través del servicio
+    nuevo_reporte = ReporteService.crear(db, payload)
+
+    # Comentario en español: Invalidación destructiva de la caché. Eliminamos 'cache:reportes' después de confirmar la persistencia.
+    try:
+        redis_client = get_redis_client()
+        redis_client.delete("cache:reportes")
+        logger.info("📡 [REDIS CACHE] Caché 'cache:reportes' invalidada tras creación de un reporte.")
+    except Exception as err:
+        logger.error(f"❌ [REDIS ERROR] Falló la invalidación de la caché 'cache:reportes' tras creación: {err}")
+
+    return nuevo_reporte
 
 
 @router.put(
@@ -227,7 +269,18 @@ def actualizar_reporte(
     Actualiza el reporte indicado. Si el ID no existe en la base de datos, lanza 404.
     Exige autenticación mediante token JWT.
     """
-    return ReporteService.actualizar(db, id, payload)
+    # Se ejecuta la actualización y persistencia (commit) a través del servicio
+    reporte_actualizado = ReporteService.actualizar(db, id, payload)
+
+    # Comentario en español: Invalidación destructiva de la caché. Eliminamos 'cache:reportes' después de confirmar la persistencia.
+    try:
+        redis_client = get_redis_client()
+        redis_client.delete("cache:reportes")
+        logger.info(f"📡 [REDIS CACHE] Caché 'cache:reportes' invalidada tras actualizar reporte ID {id}.")
+    except Exception as err:
+        logger.error(f"❌ [REDIS ERROR] Falló la invalidación de la caché 'cache:reportes' tras actualización: {err}")
+
+    return reporte_actualizado
 
 
 @router.delete(
@@ -245,7 +298,17 @@ def eliminar_reporte(
     Elimina el reporte de la base de datos.
     Ruta restringida únicamente a usuarios autenticados.
     """
+    # Se ejecuta la eliminación y persistencia (commit) a través del servicio
     ReporteService.eliminar(db, id)
+
+    # Comentario en español: Invalidación destructiva de la caché. Eliminamos 'cache:reportes' después de confirmar la persistencia.
+    try:
+        redis_client = get_redis_client()
+        redis_client.delete("cache:reportes")
+        logger.info(f"📡 [REDIS CACHE] Caché 'cache:reportes' invalidada tras eliminar reporte ID {id}.")
+    except Exception as err:
+        logger.error(f"❌ [REDIS ERROR] Falló la invalidación de la caché 'cache:reportes' tras eliminación: {err}")
+
     return {
         "mensaje": f"El reporte con ID {id} ha sido eliminado exitosamente de la base de datos."
     }
