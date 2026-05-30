@@ -133,15 +133,24 @@ def listar_reportes(db: Session = Depends(get_db)):
         # En caso de error de conexión con Redis, registramos pero permitimos pasar (Fail-Open)
         logger.error(f"❌ [REDIS ERROR] Falló la lectura de caché 'cache:reportes': {err}")
 
-    # Comentario en español: 2. Flujo Cache Miss: realizar consulta a PostgreSQL en Supabase
-    logger.info("📡 [REDIS CACHE] Miss en endpoint GET / - Consultando base de datos relacional.")
-    reportes = db.query(ReporteModel).options(
-        joinedload(ReporteModel.usuario),
-        joinedload(ReporteModel.tecnico)
-    ).all()
+    # Comentario en español: 2. Flujo Cache Miss: realizar consulta a PostgreSQL en Supabase de forma segura
+    try:
+        logger.info("📡 [REDIS CACHE] Miss en endpoint GET / - Consultando base de datos relacional.")
+        reportes = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).all()
 
-    # Comentario en español: 3. Serializar a formato compatible (lista de diccionarios)
-    datos_serializados = [ReporteService._reporte_a_dict(r) for r in reportes]
+        # Comentario en español: 3. Serializar a formato compatible (lista de diccionarios)
+        datos_serializados = [ReporteService._reporte_a_dict(r) for r in reportes]
+    except Exception as db_err:
+        # Comentario en español: Registramos el error de base de datos detallado en los logs para auditoría interna
+        # y lanzamos una excepción limpia del framework con código HTTP 502 Bad Gateway.
+        logger.error(f"❌ [DATABASE ERROR] Error al consultar o serializar reportes en el flujo Cache Miss: {db_err}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Error de base de datos al recuperar reportes de infraestructura."
+        )
 
     # Comentario en español: 4. Guardar datos serializados en Redis con un TTL de 300 segundos
     try:

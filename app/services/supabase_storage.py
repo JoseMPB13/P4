@@ -36,6 +36,12 @@ def subir_imagen_a_supabase(file_bytes: bytes, file_name: str, content_type: str
        Si la subida es exitosa, se genera la URL pública de acceso:
        https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<path_de_archivo>
     """
+    # === ADVERTENCIA DE SEGURIDAD / CONFIGURACIÓN DE VARIABLES DE ENTORNO ===
+    # Comentario en español: La variable SUPABASE_KEY obtenida del archivo '.env' debe contener obligatoriamente
+    # un token JWT firmado válido de la plataforma de Supabase (como la anon_key pública o la service_role_key).
+    # Si esta variable contiene un texto plano simple o un marcador de posición (ej: 'placeholder_anon_or_service_key'),
+    # el API Gateway Kong de Supabase rechazará inmediatamente la petición HTTP arrojando un error de tipo
+    # '403 Unauthorized: Invalid Compact JWS' al no poder decodificar la firma en formato de tres partes.
     if not settings.SUPABASE_KEY or settings.SUPABASE_KEY == "placeholder_anon_or_service_key":
         logger.warning(
             "⚠️ SUPABASE_KEY no está configurada o contiene un valor placeholder. "
