@@ -37,6 +37,7 @@ class ReporteService:
         Comentario en español: Función auxiliar para convertir un objeto ORM ReporteModel 
         a un diccionario estructurado apto para serialización JSON. Esta selección es segura 
         ya que utiliza campos específicos y no expone el hashed_password de los usuarios relacionados.
+        Incluye también comentarios e historial de estados.
         """
         return {
             "id": reporte.id,
@@ -61,7 +62,38 @@ class ReporteService:
                 "email": reporte.tecnico.email,
                 "nombre": reporte.tecnico.nombre,
                 "rol": reporte.tecnico.rol
-            } if reporte.tecnico else None
+            } if reporte.tecnico else None,
+            "comentarios": [
+                {
+                    "id": c.id,
+                    "reporte_id": c.reporte_id,
+                    "usuario_id": c.usuario_id,
+                    "texto": c.texto,
+                    "creado_en": c.creado_en.isoformat() if isinstance(c.creado_en, datetime) else c.creado_en,
+                    "usuario": {
+                        "id": c.usuario.id,
+                        "email": c.usuario.email,
+                        "nombre": c.usuario.nombre,
+                        "rol": c.usuario.rol
+                    } if c.usuario else None
+                } for c in reporte.comentarios
+            ] if reporte.comentarios else [],
+            "historial": [
+                {
+                    "id": h.id,
+                    "reporte_id": h.reporte_id,
+                    "usuario_id": h.usuario_id,
+                    "estado_anterior": h.estado_anterior,
+                    "estado_nuevo": h.estado_nuevo,
+                    "cambiado_en": h.cambiado_en.isoformat() if isinstance(h.cambiado_en, datetime) else h.cambiado_en,
+                    "usuario": {
+                        "id": h.usuario.id,
+                        "email": h.usuario.email,
+                        "nombre": h.usuario.nombre,
+                        "rol": h.usuario.rol
+                    } if h.usuario else None
+                } for h in reporte.historial
+            ] if reporte.historial else []
         }
 
     @staticmethod
@@ -119,9 +151,13 @@ class ReporteService:
             logger.error(f"📡 [REDIS CACHE ERROR] Falló la lectura de caché para ID {id}: {err}")
 
         logger.info(f"Servicio: Buscando reporte con ID: {id} en la base de datos.")
+        from app.models.comentario import ComentarioModel
+        from app.models.historial import HistorialEstadosModel
         reporte = db.query(ReporteModel).options(
             joinedload(ReporteModel.usuario),
-            joinedload(ReporteModel.tecnico)
+            joinedload(ReporteModel.tecnico),
+            joinedload(ReporteModel.comentarios).joinedload(ComentarioModel.usuario),
+            joinedload(ReporteModel.historial).joinedload(HistorialEstadosModel.usuario)
         ).filter(ReporteModel.id == id).first()
         
         if not reporte:
@@ -204,9 +240,9 @@ class ReporteService:
         return nuevo_reporte
 
     @staticmethod
-    def actualizar(db: Session, id: int, reporte_en: ReporteUpdate) -> ReporteModel:
+    def actualizar(db: Session, id: int, reporte_en: ReporteUpdate, autor_id: Optional[int] = None) -> ReporteModel:
         """
-        Modifica un reporte, invalida su caché e informa la actualización en 'study:sesion:actualizada'.
+        Modifica un reporte, registra la trazabilidad de estados, invalida su caché e informa la actualización en Redis.
         """
         # Obtenemos directamente de la BD con joinedload para asegurar la carga fresca de relaciones
         reporte = db.query(ReporteModel).options(
@@ -221,12 +257,33 @@ class ReporteService:
                 detail=f"Reporte {id} no encontrado"
             )
         
+        # Guardar valores previos para el registro de trazabilidad inmutable
+        estado_previo = reporte.estado
+        tecnico_previo = reporte.asignado_a
+        hubo_cambio = False
+
         if reporte_en.prioridad is not None:
             reporte.prioridad = reporte_en.prioridad
-        if reporte_en.estado is not None:
+
+        if reporte_en.estado is not None and reporte_en.estado != estado_previo:
             reporte.estado = reporte_en.estado
-        if reporte_en.asignado_a is not None:
+            hubo_cambio = True
+
+        if reporte_en.asignado_a is not None and reporte_en.asignado_a != tecnico_previo:
             reporte.asignado_a = reporte_en.asignado_a
+            hubo_cambio = True
+
+        # Inyectar registro inmutable de trazabilidad si hay cambios y se provee autor de la edición
+        if hubo_cambio and autor_id is not None:
+            from app.models.historial import HistorialEstadosModel
+            nuevo_historial = HistorialEstadosModel(
+                reporte_id=reporte.id,
+                usuario_id=autor_id,
+                estado_anterior=estado_previo,
+                estado_nuevo=reporte.estado
+            )
+            db.add(nuevo_historial)
+            logger.info(f"Servicio: Trazabilidad registrada. Reporte #{id} modificado por usuario ID {autor_id}.")
             
         db.commit()
         db.refresh(reporte)
@@ -237,8 +294,9 @@ class ReporteService:
         try:
             redis_client = get_redis_client()
             redis_client.delete("study:reportes:all")
+            redis_client.delete("cache:reportes")
             redis_client.delete(f"study:reportes:{id}")
-            logger.info(f"📡 [REDIS CACHE] Cachés invalidadas para reporte ID {id} y listado global tras actualización.")
+            logger.info(f"📡 [REDIS CACHE] Cachés ('cache:reportes', 'study:reportes:all', ID {id}) invalidadas tras actualización.")
         except Exception as err:
             logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras actualización: {err}")
 

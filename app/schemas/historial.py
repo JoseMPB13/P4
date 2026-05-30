@@ -15,6 +15,9 @@ class HistorialEstadosBase(BaseModel):
     estado_anterior: str = Field(..., description="Estado previo del reporte", examples=["pendiente"])
     estado_nuevo: str = Field(..., description="Estado nuevo asignado al reporte", examples=["en proceso"])
 
+from app.schemas.usuario import UsuarioResponse
+from typing import Optional
+
 class HistorialEstadosResponse(HistorialEstadosBase):
     """
     DTO para dar formato de respuesta al listar el historial de auditoría.
@@ -23,5 +26,6 @@ class HistorialEstadosResponse(HistorialEstadosBase):
     reporte_id: int = Field(..., description="ID del reporte asociado")
     usuario_id: int = Field(..., description="ID del usuario que realizó la modificación")
     cambiado_en: datetime = Field(..., description="Fecha y hora exacta del cambio de estado")
+    usuario: Optional[UsuarioResponse] = Field(default=None, description="Información del usuario que realizó la modificación")
 
     model_config = ConfigDict(from_attributes=True)

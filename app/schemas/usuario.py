@@ -95,3 +95,80 @@ class Token(BaseModel):
     token_type: str = Field(default="bearer", description="Esquema de autenticación (comúnmente 'bearer')")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+from typing import Optional
+
+class UsuarioCreateAdmin(UsuarioBase):
+    """
+    DTO de Pydantic utilizado por el Administrador para crear nuevos usuarios de forma directa
+    especificando el rol y la contraseña inicial (POST /api/usuarios).
+    """
+    password: str = Field(
+        ...,
+        description="Contraseña inicial en texto plano para la cuenta (mínimo 6 caracteres)",
+        examples=["secreto123"]
+    )
+    rol: str = Field(
+        default="estudiante",
+        description="Rol inicial asignado para el control de accesos RBAC ('estudiante', 'personal_mantenimiento', 'admin')",
+        examples=["estudiante"]
+    )
+
+    @field_validator("password")
+    @classmethod
+    def validar_longitud_password(cls, valor: str) -> str:
+        """
+        Valida que la contraseña cumpla con el estándar mínimo de longitud.
+        """
+        if not valor or len(valor.strip()) < 6:
+            raise ValueError("La contraseña debe tener como mínimo 6 caracteres válidos.")
+        return valor
+
+    @field_validator("rol")
+    @classmethod
+    def validar_rol_permitido(cls, valor: str) -> str:
+        """
+        Garantiza que el rol inyectado por el administrador sea un rol soportado en el sistema.
+        """
+        roles_validos = ["estudiante", "personal_mantenimiento", "admin"]
+        if valor not in roles_validos:
+            raise ValueError(f"El rol debe ser uno de los siguientes: {', '.join(roles_validos)}")
+        return valor
+
+
+class UsuarioUpdate(BaseModel):
+    """
+    DTO de Pydantic utilizado para la actualización parcial y selectiva de la información del usuario
+    por parte del Administrador (PUT /api/usuarios/{id}).
+    """
+    email: Optional[EmailStr] = Field(default=None, description="Nuevo correo electrónico del usuario")
+    nombre: Optional[str] = Field(default=None, description="Nuevo nombre completo")
+    rol: Optional[str] = Field(default=None, description="Nuevo rol de accesos en la plataforma")
+    password: Optional[str] = Field(default=None, description="Nueva contraseña en texto plano (opcional)")
+
+    @field_validator("password")
+    @classmethod
+    def validar_longitud_password_opcional(cls, valor: Optional[str]) -> Optional[str]:
+        """
+        Aplica validación de longitud únicamente si se proporciona una nueva contraseña.
+        """
+        if valor is not None:
+            if len(valor.strip()) < 6:
+                raise ValueError("La contraseña debe tener como mínimo 6 caracteres válidos.")
+            return valor
+        return None
+
+    @field_validator("rol")
+    @classmethod
+    def validar_rol_permitido_opcional(cls, valor: Optional[str]) -> Optional[str]:
+        """
+        Valida el nuevo rol opcional frente a los roles soportados en el esquema de la BD.
+        """
+        if valor is not None:
+            roles_validos = ["estudiante", "personal_mantenimiento", "admin"]
+            if valor not in roles_validos:
+                raise ValueError(f"El rol debe ser uno de los siguientes: {', '.join(roles_validos)}")
+            return valor
+        return None
+

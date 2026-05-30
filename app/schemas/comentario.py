@@ -35,6 +35,9 @@ class ComentarioCreate(ComentarioBase):
             raise ValueError("El texto del comentario no puede estar vacío.")
         return valor.strip()
 
+from app.schemas.usuario import UsuarioResponse
+from typing import Optional
+
 class ComentarioResponse(ComentarioBase):
     """
     DTO para dar formato de respuesta a la consulta de comentarios.
@@ -43,6 +46,7 @@ class ComentarioResponse(ComentarioBase):
     reporte_id: int = Field(..., description="ID del reporte asociado")
     usuario_id: int = Field(..., description="ID del usuario que comenta")
     creado_en: datetime = Field(..., description="Fecha y hora de creación")
+    usuario: Optional[UsuarioResponse] = Field(default=None, description="Información del usuario que escribió el comentario")
 
     # Configuración de Pydantic V2 para habilitar carga de atributos ORM
     model_config = ConfigDict(from_attributes=True)

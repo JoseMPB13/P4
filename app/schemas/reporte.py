@@ -133,10 +133,15 @@ class ReporteUpdate(BaseModel):
         return valor
 
 
+from app.schemas.comentario import ComentarioResponse
+from app.schemas.historial import HistorialEstadosResponse
+from typing import List, Optional
+
 class ReporteResponse(ReporteBase):
     """
     Esquema utilizado para dar formato a la respuesta JSON que retorna la API.
-    Añade los metadatos de control generados por el servidor.
+    Añade los metadatos de control generados por el servidor e incluye relaciones
+    de comentarios e historial de estados.
     """
     id: int = Field(..., description="Identificador único del reporte autoincrementado por la base de datos")
     prioridad: str = Field(..., description="Prioridad actual del reporte (baja, media, alta)")
@@ -149,6 +154,8 @@ class ReporteResponse(ReporteBase):
     # correspondientes al 'include: { autor: true }' de Prisma en el esquema relacional.
     usuario: Optional[UsuarioResponse] = Field(None, description="Usuario/Autor que creó la incidencia")
     tecnico: Optional[UsuarioResponse] = Field(None, description="Técnico de soporte asignado al reporte")
+    comentarios: Optional[List[ComentarioResponse]] = Field(default=[], description="Lista de comentarios asociados a la incidencia")
+    historial: Optional[List[HistorialEstadosResponse]] = Field(default=[], description="Bitácora histórica de cambios de estado")
 
     # Configuración de Pydantic V2 para soportar la carga desde modelos ORM (como SQLAlchemy)
     model_config = ConfigDict(from_attributes=True)

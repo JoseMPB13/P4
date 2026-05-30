@@ -269,8 +269,8 @@ def actualizar_reporte(
     Actualiza el reporte indicado. Si el ID no existe en la base de datos, lanza 404.
     Exige autenticación mediante token JWT.
     """
-    # Se ejecuta la actualización y persistencia (commit) a través del servicio
-    reporte_actualizado = ReporteService.actualizar(db, id, payload)
+    # Se ejecuta la actualización y persistencia (commit) a través del servicio registrando el autor
+    reporte_actualizado = ReporteService.actualizar(db, id, payload, autor_id=current_user.id)
 
     # Comentario en español: Invalidación destructiva de la caché. Eliminamos 'cache:reportes' después de confirmar la persistencia.
     try:
@@ -312,3 +312,54 @@ def eliminar_reporte(
     return {
         "mensaje": f"El reporte con ID {id} ha sido eliminado exitosamente de la base de datos."
     }
+
+
+from app.schemas.comentario import ComentarioBase, ComentarioResponse
+from app.models.comentario import ComentarioModel
+
+@router.post(
+    "/{id}/comentarios",
+    response_model=ComentarioResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Agregar comentario a una incidencia",
+    description="Ruta Protegida. Registra un nuevo comentario/nota técnica asociado a la incidencia e invalida su caché."
+)
+def agregar_comentario(
+    id: int,
+    payload: ComentarioBase,
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(get_current_user)
+):
+    # Validar la existencia física del reporte
+    reporte = db.query(ReporteModel).filter(ReporteModel.id == id).first()
+    if not reporte:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reporte no encontrado."
+        )
+
+    # Crear el registro del comentario
+    nuevo_comentario = ComentarioModel(
+        reporte_id=id,
+        usuario_id=current_user.id,
+        texto=payload.texto
+    )
+
+    db.add(nuevo_comentario)
+    db.commit()
+    db.refresh(nuevo_comentario)
+    
+    # Pre-cargar relación de usuario para que Pydantic lo serialice en el DTO
+    db.refresh(nuevo_comentario, ["usuario"])
+
+    # Invalidar cachés para asegurar actualización inmediata
+    try:
+        redis_client = get_redis_client()
+        redis_client.delete("study:reportes:all")
+        redis_client.delete("cache:reportes")
+        redis_client.delete(f"study:reportes:{id}")
+        logger.info(f"📡 [REDIS CACHE] Cachés invalidadas tras registrar comentario en reporte #{id}.")
+    except Exception as err:
+        logger.error(f"❌ [REDIS ERROR] Falló la invalidación tras registrar comentario: {err}")
+
+    return nuevo_comentario
