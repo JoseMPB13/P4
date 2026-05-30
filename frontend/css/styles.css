@@ -642,6 +642,36 @@ textarea.form-control-minimal {
     color: hsl(38, 92%, 55%);
 }
 
+/* 5. Éxito global (Toasts de acceso/registro exitoso) -> Verde Esmeralda (HSL) */
+.notif-success {
+    border-left: 4px solid hsl(150, 80%, 40%);
+}
+.notif-success .notif-icon-container {
+    background: hsla(150, 80%, 40%, 0.12);
+    border: 1px solid hsla(150, 80%, 40%, 0.2);
+    color: hsl(150, 80%, 45%);
+}
+
+/* 6. Error de acceso / General (Toasts de error) -> Rojo Coral (HSL) */
+.notif-error {
+    border-left: 4px solid hsl(0, 84%, 55%);
+}
+.notif-error .notif-icon-container {
+    background: hsla(0, 84%, 55%, 0.12);
+    border: 1px solid hsla(0, 84%, 55%, 0.2);
+    color: hsl(0, 84%, 60%);
+}
+
+/* 7. Advertencias y validaciones (Toasts de warning) -> Ámbar (HSL) */
+.notif-warning {
+    border-left: 4px solid hsl(38, 92%, 50%);
+}
+.notif-warning .notif-icon-container {
+    background: hsla(38, 92%, 50%, 0.12);
+    border: 1px solid hsla(38, 92%, 50%, 0.2);
+    color: hsl(38, 92%, 55%);
+}
+
 /* --- Animaciones del Feed --- */
 @keyframes icon-critical-blink {
     0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 2px hsl(0, 84%, 60%)); }

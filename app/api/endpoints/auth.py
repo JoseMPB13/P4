@@ -63,11 +63,14 @@ def registrar_usuario(payload: UsuarioCreate, db: Session = Depends(get_db)):
     hashed_pass = AuthService.hash_password(payload.password)
     
     # 3. Instanciar la entidad de usuario
+    # Comentario en español: Se fuerza el rol de "estudiante" de manera rígida e inmutable en el backend.
+    # Esto asegura que ninguna cuenta pueda ser creada con privilegios elevados ('admin' o 'personal_mantenimiento')
+    # a través de la inyección de atributos no autorizados en el payload de la petición.
     nuevo_usuario = UsuarioModel(
         email=payload.email,
         nombre=payload.nombre,
         hashed_password=hashed_pass,
-        rol=payload.rol
+        rol="estudiante"
     )
     
     # 4. Guardar la entidad en la base de datos transaccionalmente

@@ -28,16 +28,14 @@ class UsuarioBase(BaseModel):
 class UsuarioCreate(UsuarioBase):
     """
     DTO utilizado para validar el payload de registro de nuevos usuarios (POST /auth/register).
+    Comentario en español: Se ha removido el campo 'rol' y su validador para prevenir inyecciones
+    de parámetros desde peticiones manipuladas del lado del cliente. Toda cuenta nueva
+    adquirirá un rol por defecto en el backend.
     """
     password: str = Field(
         ..., 
         description="Contraseña en texto plano para el registro de la cuenta (mínimo 6 caracteres)",
         examples=["secreto123"]
-    )
-    rol: str = Field(
-        default="estudiante",
-        description="Rol del usuario para el control de accesos RBAC ('estudiante', 'personal_mantenimiento', 'admin')",
-        examples=["estudiante"]
     )
 
     @field_validator("password")
@@ -59,17 +57,6 @@ class UsuarioCreate(UsuarioBase):
         if not valor or not valor.strip():
             raise ValueError("El nombre es obligatorio y no puede estar en blanco.")
         return valor.strip()
-
-    @field_validator("rol")
-    @classmethod
-    def validar_rol_permitido(cls, valor: str) -> str:
-        """
-        Validador que restringe el rol a los valores definidos en la restricción CHECK.
-        """
-        roles_validos = ["estudiante", "personal_mantenimiento", "admin"]
-        if valor not in roles_validos:
-            raise ValueError(f"El rol debe ser uno de los siguientes: {', '.join(roles_validos)}")
-        return valor
 
 class UsuarioLogin(BaseModel):
     """

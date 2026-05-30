@@ -13,6 +13,7 @@
  */
 
 import { authService } from "../services/authService.js";
+import { notifier } from "../utils/notifier.js";
 
 export class LoginView {
     /**
@@ -77,14 +78,6 @@ export class LoginView {
                             <div class="form-group">
                                 <label for="reg-password" class="form-label-minimal">Contraseña</label>
                                 <input type="password" class="form-control-minimal" id="reg-password" required placeholder="Mínimo 6 caracteres">
-                            </div>
-                            <div class="form-group">
-                                <label for="reg-rol" class="form-label-minimal">Rol de Usuario</label>
-                                <select class="form-control-minimal" id="reg-rol" required style="appearance: none;">
-                                    <option value="estudiante" selected>Estudiante</option>
-                                    <option value="personal_mantenimiento">Personal de Mantenimiento</option>
-                                    <option value="admin">Administrador</option>
-                                </select>
                             </div>
                             <button type="submit" class="btn-minimal btn-accent" style="width: 100%; margin-top: 1rem;">
                                 <span class="loader-spinner d-none" id="reg-spinner" style="margin-right: 0.5rem;"></span>
@@ -157,7 +150,11 @@ export class LoginView {
                 const password = document.getElementById("login-password").value;
 
                 if (!email || !password) {
-                    this.mostrarAlerta("danger", "⚠️ Todos los campos son obligatorios.");
+                    notifier.show({
+                        tipo: "warning",
+                        titulo: "Campos Incompletos",
+                        mensaje: "Todos los campos son obligatorios."
+                    });
                     return;
                 }
 
@@ -166,14 +163,40 @@ export class LoginView {
 
                 try {
                     await authService.login(email, password);
-                    this.mostrarAlerta("success", "✅ ¡Acceso concedido! Redireccionando...");
+                    
+                    // Comentario en español: Se introduce un retraso obligatorio de 1500ms para garantizar
+                    // que la tarjeta visual premium de éxito sea plenamente visible para el usuario antes de recargar.
+                    notifier.show({
+                        tipo: "success",
+                        titulo: "Acceso Concedido",
+                        mensaje: "¡Sesión iniciada con éxito! Redireccionando..."
+                    });
                     
                     setTimeout(() => {
                         window.location.reload();
-                    }, 1000);
+                    }, 1500);
 
                 } catch (error) {
-                    this.mostrarAlerta("danger", `❌ ${error.message}`);
+                    if (error.status === 401) {
+                        // Comentario en español: Mensaje seguro y genérico para fallos de autenticación (HTTP 401)
+                        notifier.show({
+                            tipo: "error",
+                            titulo: "Acceso Denegado",
+                            mensaje: "Credenciales incorrectas (correo o contraseña no válidos)."
+                        });
+                    } else if (error.status === 400 || error.status === 422) {
+                        notifier.show({
+                            tipo: "warning",
+                            titulo: "Advertencia",
+                            mensaje: error.message
+                        });
+                    } else {
+                        notifier.show({
+                            tipo: "error",
+                            titulo: "Error de Acceso",
+                            mensaje: error.message || "Ocurrió un error inesperado al intentar iniciar sesión."
+                        });
+                    }
                 } finally {
                     this.mostrarCarga("login-spinner", false);
                 }
@@ -188,15 +211,22 @@ export class LoginView {
                 const nombre = document.getElementById("reg-nombre").value.trim();
                 const email = document.getElementById("reg-email").value.trim();
                 const password = document.getElementById("reg-password").value;
-                const rol = document.getElementById("reg-rol").value;
 
-                if (!nombre || !email || !password || !rol) {
-                    this.mostrarAlerta("danger", "⚠️ Todos los campos son obligatorios.");
+                if (!nombre || !email || !password) {
+                    notifier.show({
+                        tipo: "warning",
+                        titulo: "Campos Incompletos",
+                        mensaje: "Todos los campos son obligatorios."
+                    });
                     return;
                 }
 
                 if (password.length < 6) {
-                    this.mostrarAlerta("danger", "⚠️ La contraseña debe tener mínimo 6 caracteres.");
+                    notifier.show({
+                        tipo: "warning",
+                        titulo: "Contraseña Corta",
+                        mensaje: "La contraseña debe tener mínimo 6 caracteres."
+                    });
                     return;
                 }
 
@@ -204,8 +234,18 @@ export class LoginView {
                 this.limpiarAlerta();
 
                 try {
-                    await authService.register({ nombre, email, password, rol });
-                    this.mostrarAlerta("success", "🎉 ¡Cuenta registrada! Ya puedes iniciar sesión.");
+                    // Comentario en español: Se envían exclusivamente las propiedades de nombre, email y password.
+                    // Se remueve la lectura del rol para asegurar que el registro sea inmune a manipulación de privilegios.
+                    await authService.register({ nombre, email, password });
+                    
+                    // Comentario en español: Retraso de 1500ms para permitir al usuario apreciar visualmente el Toast
+                    // de cuenta registrada de manera fluida antes de redirigir al formulario de acceso.
+                    notifier.show({
+                        tipo: "success",
+                        titulo: "Registro Exitoso",
+                        mensaje: "🎉 ¡Tu cuenta ha sido creada correctamente! Ya puedes iniciar sesión."
+                    });
+                    
                     registerForm.reset();
 
                     setTimeout(() => {
@@ -213,7 +253,19 @@ export class LoginView {
                     }, 1500);
 
                 } catch (error) {
-                    this.mostrarAlerta("danger", `❌ ${error.message}`);
+                    if (error.status === 400 || error.status === 422) {
+                        notifier.show({
+                            tipo: "warning",
+                            titulo: "Advertencia de Registro",
+                            mensaje: error.message
+                        });
+                    } else {
+                        notifier.show({
+                            tipo: "error",
+                            titulo: "Error de Registro",
+                            mensaje: error.message || "Ocurrió un error inesperado al intentar registrar la cuenta."
+                        });
+                    }
                 } finally {
                     this.mostrarCarga("reg-spinner", false);
                 }

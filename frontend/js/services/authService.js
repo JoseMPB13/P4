@@ -47,7 +47,11 @@ export const authService = {
         const data = await respuesta.json();
 
         if (!respuesta.ok) {
-            throw new Error(data.error || data.detail || "Error al iniciar sesión.");
+            // Comentario en español: Adjuntamos el código de estado HTTP al objeto de error para
+            // facilitar su interpretación en las vistas y el despliegue de alertas específicas.
+            const err = new Error(data.error || data.detail || "Error al iniciar sesión.");
+            err.status = respuesta.status;
+            throw err;
         }
 
         // Guardar token en el almacenamiento de sesión
@@ -71,7 +75,7 @@ export const authService = {
 
     /**
      * Registra un nuevo usuario en la base de datos.
-     * @param {Object} userData - Datos de registro (nombre, email, password, rol).
+     * @param {Object} userData - Datos de registro (nombre, email, password).
      * @returns {Promise<Object>} Datos del usuario creado.
      */
     async register(userData) {
@@ -86,7 +90,11 @@ export const authService = {
         const data = await respuesta.json();
 
         if (!respuesta.ok) {
-            throw new Error(data.error || data.detail || "Error al registrar la cuenta.");
+            // Comentario en español: Adjuntamos el código de estado HTTP para manejar respuestas
+            // semánticas como 400 (Bad Request) o 422 (Unprocessable Entity) en la UI.
+            const err = new Error(data.error || data.detail || "Error al registrar la cuenta.");
+            err.status = respuesta.status;
+            throw err;
         }
 
         return data;
