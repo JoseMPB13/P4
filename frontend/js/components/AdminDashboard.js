@@ -922,14 +922,28 @@ export class AdminDashboard {
             });
 
             if (!respuesta.ok) {
-                throw new Error("No autorizado o error de servidor.");
+                const err = await respuesta.json();
+                throw new Error(err.detail || "No autorizado o error de servidor.");
             }
 
             selectEl.defaultValue = nuevoEstado;
+            
+            // Comentario en español: Se dispara un toast local instantáneo de éxito para dar feedback
+            // inmediato sobre la actualización del estado de la incidencia, sin esperar la latencia del WebSocket.
+            notifier.show({
+                tipo: "success",
+                titulo: "Estado Actualizado",
+                mensaje: "El nuevo estado se ha guardado"
+            });
+
             await this.cargarDatosReportes();
 
         } catch (error) {
-            alert(`❌ Error al actualizar estado: ${error.message}`);
+            notifier.show({
+                tipo: "error",
+                titulo: "Error al actualizar estado",
+                mensaje: error.message
+            });
             selectEl.value = previo;
         }
     }
@@ -944,13 +958,26 @@ export class AdminDashboard {
             });
 
             if (!respuesta.ok) {
-                throw new Error("No autorizado o error del servidor.");
+                const err = await respuesta.json();
+                throw new Error(err.detail || "No autorizado o error del servidor.");
             }
+
+            // Comentario en español: Se muestra una alerta local de confirmación inmediata tras
+            // eliminar con éxito el reporte en el servidor, garantizando feedback visual rápido.
+            notifier.show({
+                tipo: "success",
+                titulo: "Incidencia Eliminada",
+                mensaje: "El registro fue borrado localmente"
+            });
 
             await this.cargarDatosReportes();
 
         } catch (error) {
-            alert(`❌ Error al eliminar reporte: ${error.message}`);
+            notifier.show({
+                tipo: "error",
+                titulo: "Error al eliminar reporte",
+                mensaje: error.message
+            });
         }
     }
 

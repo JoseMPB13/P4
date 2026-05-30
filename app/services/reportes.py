@@ -348,4 +348,22 @@ class ReporteService:
         except Exception as err:
             logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras eliminación: {err}")
 
+        # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
+        # Comentario en español: Publicamos el evento de eliminación en el canal study:reporte_eliminado.
+        # Esto asegura que todos los clientes suscritos (vía WebSockets) reciban la confirmación
+        # en tiempo real de que el reporte físico ha sido removido y puedan responder en sus interfaces.
+        canal = "study:reporte_eliminado"
+        mensaje = {
+            "tipo": "reporte:eliminado",
+            "payload": {"id": id},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "version": "1.0.0"
+        }
+        try:
+            redis_client = get_redis_client()
+            redis_client.publish(canal, json.dumps(mensaje))
+            logger.info(f"Servicio: Evento 'reporte:eliminado' publicado en el canal '{canal}'.")
+        except Exception as err:
+            logger.error(f"Servicio: No se pudo publicar el evento de eliminación en Redis: {err}")
+
         return True

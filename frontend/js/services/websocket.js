@@ -1,5 +1,6 @@
 // frontend/js/services/websocket.js
 import { API_URL } from "./api.js";
+import { notifier } from "../utils/notifier.js";
 
 // Construir la URL del WebSocket de forma dinámica a partir de la API_URL
 const wsBaseUrl = API_URL
@@ -144,99 +145,48 @@ class WebSocketService {
     }
 
     /**
-     * Procesa y mapea el evento para lanzar la notificación adecuada.
+     * Procesa y mapea el evento para lanzar la notificación adecuada utilizando notifier.show().
      * @param {Object} evento - Payload del evento WebSocket.
      */
     procesarEvento(evento) {
         const { tipo, payload } = evento;
         if (!tipo || !payload) return;
 
-        let claseNotif = "notif-creado";
-        let iconoHtml = '<i class="bi bi-info-circle-fill"></i>';
-        let titulo = "Incidencia Reportada";
-        let mensaje = "";
-
-        // Mapear los 4 eventos correspondientes a las alertas HSL
+        // Comentario en español: Mapeamos los mensajes de Redis Pub/Sub recibidos por WebSocket
+        // y los canalizamos a través de la utilidad centralizada notifier.show(), eliminando
+        // por completo el método redundante local mostrarNotificacion() y su manipulación manual de DOM.
         if (tipo === "reporte:creado") {
-            // Si la prioridad es alta o crítica, se mapea a reporte:critico
-            if (payload.prioridad === "alta" || payload.prioridad === "critica") {
-                claseNotif = "notif-critico";
-                iconoHtml = '<i class="bi bi-exclamation-triangle-fill"></i>';
-                titulo = `🚨 ALERTA CRÍTICA: ${payload.titulo}`;
-                mensaje = `Se ha registrado una incidencia urgente en ${payload.ubicacion}.`;
-            } else {
-                claseNotif = "notif-creado"; // Azul HSL
-                iconoHtml = '<i class="bi bi-plus-circle-fill"></i>';
-                titulo = `Nueva Incidencia: ${payload.titulo}`;
-                mensaje = `Reportada por ${payload.usuario?.nombre || "Usuario"} en ${payload.ubicacion}.`;
-            }
-        } else if (tipo === "reporte:critico") {
-            claseNotif = "notif-critico"; // Rojo HSL parpadeante
-            iconoHtml = '<i class="bi bi-exclamation-triangle-fill"></i>';
-            titulo = `🚨 ALERTA CRÍTICA: ${payload.titulo}`;
-            mensaje = `Incidencia de alta prioridad registrada en ${payload.ubicacion}.`;
-        } else if (tipo === "reporte:actualizado" || tipo === "reporte:cambio_estado") {
-            claseNotif = "notif-cambio-estado"; // Verde HSL
-            iconoHtml = '<i class="bi bi-arrow-left-right"></i>';
-            titulo = `Actualización: ${payload.titulo}`;
-            mensaje = `Estado cambiado a "${payload.estado.toUpperCase()}" en ${payload.ubicacion}.`;
-        } else if (tipo === "comentario:creado") {
-            claseNotif = "notif-comentario"; // Ámbar HSL
-            iconoHtml = '<i class="bi bi-chat-right-text-fill"></i>';
-            titulo = `Nuevo Comentario: ${payload.reporte_titulo || "Incidencia"}`;
-            mensaje = `Un técnico ha agregado una actualización a la bitácora.`;
-        } else {
-            // Evento no reconocido
-            return;
-        }
-
-        this.mostrarNotificacion(claseNotif, iconoHtml, titulo, mensaje);
-    }
-
-    /**
-     * Inyecta dinámicamente una tarjeta de notificación en el feed.
-     */
-    mostrarNotificacion(claseNotif, iconoHtml, titulo, mensaje) {
-        const feed = document.getElementById("notifications-feed");
-        if (!feed) return;
-
-        // Crear contenedor de la tarjeta
-        const card = document.createElement("div");
-        card.className = `notification-card ${claseNotif}`;
-        
-        // Obtener hora actual legible
-        const horaStr = new Date().toLocaleTimeString("es-BO", {
-            hour: "2-digit",
-            minute: "2-digit"
-        });
-
-        card.innerHTML = `
-            <div class="notif-icon-container">
-                ${iconoHtml}
-            </div>
-            <div class="notif-body">
-                <span class="notif-title">${titulo}</span>
-                <span class="notif-text">${mensaje}</span>
-                <span class="notif-time">${horaStr}</span>
-            </div>
-        `;
-
-        // Agregar al inicio del feed
-        feed.prepend(card);
-
-        // Disparar animación de entrada en el siguiente frame
-        requestAnimationFrame(() => {
-            card.classList.add("show");
-        });
-
-        // Configurar auto-cierre tras 6 segundos con animación fade-out
-        setTimeout(() => {
-            card.classList.remove("show");
-            card.classList.add("fade-out");
-            card.addEventListener("transitionend", () => {
-                card.remove();
+            const esCritica = payload.prioridad === "alta" || payload.prioridad === "critica";
+            notifier.show({
+                tipo: esCritica ? "error" : "success",
+                titulo: esCritica ? `🚨 ALERTA CRÍTICA: ${payload.titulo}` : `Nueva Incidencia: ${payload.titulo}`,
+                mensaje: esCritica ? `Se ha registrado una incidencia urgente en ${payload.ubicacion}.` : `Reportada por ${payload.usuario?.nombre || "Usuario"} en ${payload.ubicacion}.`
             });
-        }, 6000);
+        } else if (tipo === "reporte:critico") {
+            notifier.show({
+                tipo: "error",
+                titulo: `🚨 ALERTA CRÍTICA: ${payload.titulo}`,
+                mensaje: `Incidencia de alta prioridad registrada en ${payload.ubicacion}.`
+            });
+        } else if (tipo === "reporte:actualizado" || tipo === "reporte:cambio_estado") {
+            notifier.show({
+                tipo: "success",
+                titulo: `Actualización: ${payload.titulo}`,
+                mensaje: `Estado cambiado a "${payload.estado.toUpperCase()}" en ${payload.ubicacion}.`
+            });
+        } else if (tipo === "reporte:eliminado") {
+            notifier.show({
+                tipo: "error",
+                titulo: "Incidencia Removida",
+                mensaje: "El reporte ha sido eliminado del sistema"
+            });
+        } else if (tipo === "comentario:creado") {
+            notifier.show({
+                tipo: "warning",
+                titulo: `Nuevo Comentario: ${payload.reporte_titulo || "Incidencia"}`,
+                mensaje: `Un técnico ha agregado una actualización a la bitácora.`
+            });
+        }
     }
 }
 
