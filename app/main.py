@@ -32,6 +32,8 @@ import logging
 import threading
 import asyncio
 import json
+import time
+import redis
 
 from app.core.config import settings
 from app.api.endpoints.reportes import router as reportes_router
@@ -97,28 +99,63 @@ def redis_pubsub_listener():
     """
     Función del hilo de fondo que se suscribe a los eventos 'study:*' de Redis Pub/Sub
     y llama al broadcast de WebSockets de manera segura sobre el bucle de eventos.
+    
+    Implementación Resiliente con Reconexión y Retraso Exponencial (Exponential Backoff):
+    - Envuelto dentro de un bucle de control infinito 'while True' para asegurar que el hilo
+      nunca muera de forma silenciosa si la conexión con Upstash falla.
+    - Captura excepciones de red específicas de Redis (ConnectionError, TimeoutError).
+    - Implementa retrasos que inician en 1 segundo y se duplican en cada intento fallido,
+      hasta alcanzar un tope máximo de 60 segundos.
+    - Al reestablecer exitosamente la suscripción y recibir mensajes, se reinicia el retraso.
     """
     logger.info("📡 [Redis Listener Thread] Iniciando escucha en el patrón 'study:*'...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    try:
-        redis_client = get_redis_client()
-        pubsub_obj = redis_client.pubsub()
-        pubsub_obj.psubscribe("study:*")
-        
-        # Escuchamos bloqueando el hilo de fondo
-        for mensaje in pubsub_obj.listen():
-            if mensaje["type"] == "pmessage":
-                data_str = mensaje["data"]
-                if isinstance(data_str, bytes):
-                    data_str = data_str.decode("utf-8")
-                
-                logger.info(f"📡 [Redis Listener Thread] Mensaje recibido de Redis Pub/Sub: {data_str}")
-                # Hacemos broadcast llamando de manera segura al loop de eventos principal de la aplicación
-                asyncio.run_coroutine_threadsafe(manager.broadcast(data_str), main_loop)
-    except Exception as err:
-        logger.error(f"📡 [Redis Listener Thread] Error crítico en el hilo de fondo: {err}")
+    backoff = 1  # Tiempo de retraso inicial para reconexión exponencial
+
+    while True:
+        try:
+            logger.info("📡 [Redis Listener Thread] Conectando a Redis Pub/Sub...")
+            redis_client = get_redis_client()
+            
+            # Verificación del estado del canal/cliente mediante ping
+            redis_client.ping()
+            
+            pubsub_obj = redis_client.pubsub()
+            pubsub_obj.psubscribe("study:*")
+            logger.info("📡 [Redis Listener Thread] Suscripción exitosa a 'study:*' en Redis Pub/Sub.")
+            
+            # Conexión exitosa establecida: reestablecemos el backoff al valor inicial
+            backoff = 1
+            
+            # Escuchamos bloqueando el hilo de fondo
+            for mensaje in pubsub_obj.listen():
+                if mensaje["type"] == "pmessage":
+                    data_str = mensaje["data"]
+                    if isinstance(data_str, bytes):
+                        data_str = data_str.decode("utf-8")
+                    
+                    logger.info(f"📡 [Redis Listener Thread] Mensaje recibido de Redis Pub/Sub: {data_str}")
+                    # Hacemos broadcast llamando de manera segura al loop de eventos principal de la aplicación
+                    asyncio.run_coroutine_threadsafe(manager.broadcast(data_str), main_loop)
+                    
+        except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as redis_err:
+            logger.error(
+                f"📡 [Redis Listener Thread] Fallo de red/timeout con Redis Pub/Sub: {redis_err}. "
+                f"Reintentando reconexión en {backoff} segundos..."
+            )
+            time.sleep(backoff)
+            # Incremento exponencial con tope máximo de 60 segundos para evitar reintentos infinitos sin control
+            backoff = min(backoff * 2, 60)
+            
+        except Exception as err:
+            logger.error(
+                f"📡 [Redis Listener Thread] Error inesperado en el canal de comunicación: {err}. "
+                f"Reintentando en {backoff} segundos..."
+            )
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
 
 # Bucle de eventos principal que guardaremos al arrancar
 main_loop = None
