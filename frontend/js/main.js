@@ -29,7 +29,7 @@ async function renderApp() {
     
     if (!appRoot) return;
 
-    // Obtener información del usuario actual y verificar token
+    // Comentario en español: Recuperamos el token y usuario sin alterar sessionStorage para mantener la sesión persistente al cambiar de pestaña o componente
     const token = sessionStorage.getItem("token");
     const usuario = authService.getUsuarioActual();
 

@@ -300,6 +300,23 @@ textarea.form-control-minimal {
 .badge-warning { background-color: rgba(245, 158, 11, 0.15); color: var(--accent); }
 .badge-info { background-color: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
 .badge-success { background-color: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+.badge-estudiante { background: hsla(215, 20%, 50%, 0.12); color: hsl(215, 20%, 55%); border: 1px solid hsla(215, 20%, 50%, 0.2); }
+
+.input-minimal {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.input-minimal:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
 
 /* Dropdowns integrados en tablas */
 .select-minimal {

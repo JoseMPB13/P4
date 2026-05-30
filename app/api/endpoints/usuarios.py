@@ -120,7 +120,9 @@ def actualizar_usuario(
     if payload.rol is not None:
         usuario.rol = payload.rol
 
-    # Hashear la nueva contraseña si es suministrada en la edición
+    # Comentario en español: Hashear de forma segura utilizando la utilidad AuthService (que internamente implementa bcrypt)
+    # la nueva contraseña en caso de que el administrador decida actualizarla en la edición del usuario,
+    # impidiendo almacenar contraseñas en texto plano y garantizando la confidencialidad de la cuenta en la BD.
     if payload.password is not None:
         usuario.hashed_password = AuthService.hash_password(payload.password)
 

@@ -13,6 +13,7 @@
  */
 
 import { apiFetch } from "../services/api.js";
+import { notifier } from "../utils/notifier.js";
 
 export class AdminDashboard {
     /**
@@ -105,7 +106,7 @@ export class AdminDashboard {
                                 <input type="email" id="usuario-email" required class="input-minimal" style="width: 100%; box-sizing: border-box;">
                             </div>
                             <div id="password-field-container">
-                                <label for="usuario-password" class="form-label" style="display: block; margin-bottom: 0.25rem; font-size: 0.8125rem;">Contraseña (mínimo 6 caracteres)</label>
+                                <label for="usuario-password" id="usuario-password-label" class="form-label" style="display: block; margin-bottom: 0.25rem; font-size: 0.8125rem;">Contraseña (mínimo 6 caracteres)</label>
                                 <input type="password" id="usuario-password" required class="input-minimal" style="width: 100%; box-sizing: border-box;">
                             </div>
                             <div>
@@ -428,7 +429,7 @@ export class AdminDashboard {
                         rolBadgeClass = "badge-warning";
                         rolLabel = "Mantenimiento";
                     } else {
-                        rolBadgeClass = "badge-minimal";
+                        rolBadgeClass = "badge-estudiante";
                         rolLabel = "Estudiante";
                     }
 
@@ -523,6 +524,9 @@ export class AdminDashboard {
             let tecnicos = [];
             if (resUsuarios.ok) {
                 const usuarios = await resUsuarios.json();
+                // Comentario en español: Filtramos los usuarios para que el selector de asignación técnica
+                // contenga únicamente a aquellos con el rol 'personal_mantenimiento', evitando asignar incidentes
+                // a usuarios estudiantes o administradores que no realizan labores de soporte físico.
                 tecnicos = usuarios.filter(u => u.rol === "personal_mantenimiento");
             }
 
@@ -753,6 +757,8 @@ export class AdminDashboard {
                 document.getElementById("usuario-modal-title").textContent = "Registrar Usuario";
                 document.getElementById("password-field-container").style.display = "block";
                 document.getElementById("usuario-password").setAttribute("required", "required");
+                document.getElementById("usuario-password-label").textContent = "Contraseña (mínimo 6 caracteres)";
+                document.getElementById("usuario-password").placeholder = "••••••••";
 
                 document.getElementById("usuario-modal").classList.add("active");
                 return;
@@ -780,8 +786,10 @@ export class AdminDashboard {
                 document.getElementById("usuario-password").value = "";
 
                 document.getElementById("usuario-modal-title").textContent = "Modificar Usuario";
-                document.getElementById("password-field-container").style.display = "none";
-                document.getElementById("usuario-password").removeAttribute("required");
+                document.getElementById("password-field-container").style.display = "block"; // Se mantiene visible
+                document.getElementById("usuario-password").removeAttribute("required"); // No requerida para la edición
+                document.getElementById("usuario-password-label").textContent = "Nueva Contraseña (dejar en blanco para conservar)";
+                document.getElementById("usuario-password").placeholder = "Dejar en blanco para no cambiar";
 
                 document.getElementById("usuario-modal").classList.add("active");
                 return;
@@ -984,14 +992,36 @@ export class AdminDashboard {
 
             if (!respuesta.ok) {
                 const err = await respuesta.json();
-                throw new Error(err.detail || "Error en la operación del servidor.");
+                const errorObj = new Error(err.error || err.detail || "Error en la operación del servidor.");
+                errorObj.status = respuesta.status;
+                throw errorObj;
             }
 
             document.getElementById("usuario-modal").classList.remove("active");
             await this.cargarDatosUsuarios();
 
+            // Desplegar notificación de éxito correspondiente
+            if (isEdit) {
+                notifier.show({
+                    tipo: "success",
+                    titulo: "Usuario Actualizado",
+                    mensaje: "Los cambios se guardaron con éxito"
+                });
+            } else {
+                notifier.show({
+                    tipo: "success",
+                    titulo: "Usuario Creado",
+                    mensaje: "El usuario fue registrado correctamente"
+                });
+            }
+
         } catch (error) {
-            alert(`❌ Falló la operación: ${error.message}`);
+            const isWarning = error.status === 400 || error.status === 422;
+            notifier.show({
+                tipo: isWarning ? "warning" : "error",
+                titulo: isWarning ? "Advertencia" : "Error en Operación",
+                mensaje: error.message || "Ocurrió un error al guardar el usuario."
+            });
         }
     }
 
@@ -1006,13 +1036,27 @@ export class AdminDashboard {
 
             if (!respuesta.ok) {
                 const err = await respuesta.json();
-                throw new Error(err.detail || "Fallo del servidor.");
+                const errorObj = new Error(err.error || err.detail || "Fallo del servidor.");
+                errorObj.status = respuesta.status;
+                throw errorObj;
             }
 
             await this.cargarDatosUsuarios();
 
+            // Notificación estética tras eliminación exitosa
+            notifier.show({
+                tipo: "success",
+                titulo: "Usuario Eliminado",
+                mensaje: "La cuenta ha sido removida del sistema"
+            });
+
         } catch (error) {
-            alert(`❌ Error al eliminar usuario: ${error.message}`);
+            const isWarning = error.status === 400 || error.status === 403;
+            notifier.show({
+                tipo: isWarning ? "warning" : "error",
+                titulo: isWarning ? "Advertencia" : "Error al Eliminar",
+                mensaje: error.message || "Ocurrió un error al intentar eliminar el usuario."
+            });
         }
     }
 }

@@ -28,15 +28,22 @@ export async function apiFetch(ruta, opciones = {}) {
     // Extraer automáticamente el token de sessionStorage si existe
     const token = sessionStorage.getItem("token");
 
-    // Inyectar el token JWT únicamente en peticiones de escritura (POST, PUT, DELETE) si el token existe
-    if (token && ["POST", "PUT", "DELETE"].includes(metodo)) {
+    // Comentario en español: Inyectar el token JWT en TODAS las peticiones (incluyendo GET) si el token existe
+    if (token) {
         opciones.headers["Authorization"] = `Bearer ${token}`;
     }
-    // Ejecutar la petición utilizando la función fetch nativa
-    const respuesta = await fetch(url, opciones);
 
-    // Interceptar de forma reactiva respuestas 401 (Sesión Expirada o Inválida)
-    if (respuesta.status === 401) {
+    // Comentario en español: Ejecutar la petición utilizando la función fetch nativa capturando errores de conexión
+    let respuesta;
+    try {
+        respuesta = await fetch(url, opciones);
+    } catch (error) {
+        // Comentario en español: Error de red o conexión física. No limpiamos credenciales, simplemente relanzamos el error.
+        throw error;
+    }
+
+    // Comentario en español: Interceptar respuestas de forma reactiva, limpiando credenciales ÚNICAMENTE ante un error HTTP 401
+    if (respuesta && respuesta.status === 401) {
         console.warn("⚠️ [API Interceptor] Error 401 detectado. Wiping credentials and reloading...");
         sessionStorage.removeItem("token");
         sessionStorage.removeItem("token_type");
