@@ -368,7 +368,61 @@ def agregar_comentario(
         redis_client.delete("cache:reportes")
         redis_client.delete(f"study:reportes:{id}")
         logger.info(f"📡 [REDIS CACHE] Cachés invalidadas tras registrar comentario en reporte #{id}.")
+
+        # Comentario en español: Publicar evento de actualización en el canal Redis Pub/Sub para propagación
+        # en tiempo real a través del WebSocket de que hay una nueva nota técnica en el reporte.
+        db_reporte_completo = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.id == id).first()
+        
+        if db_reporte_completo:
+            import json
+            from datetime import timezone
+            payload_datos = ReporteService._reporte_a_dict(db_reporte_completo)
+            mensaje = {
+                "tipo": "reporte:actualizado",
+                "payload": payload_datos,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "version": "1.0.0"
+            }
+            redis_client.publish("study:reporte_actualizado", json.dumps(mensaje))
+            logger.info(f"📡 [REDIS PUB/SUB] Evento de comentario publicado en 'study:reporte_actualizado' para reporte #{id}.")
     except Exception as err:
-        logger.error(f"❌ [REDIS ERROR] Falló la invalidación tras registrar comentario: {err}")
+        logger.error(f"❌ [REDIS ERROR] Falló la invalidación o publicación tras registrar comentario: {err}")
 
     return nuevo_comentario
+
+
+@router.get(
+    "/mantenimiento",
+    response_model=List[ReporteResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Listar reportes asignados al personal de mantenimiento",
+    description="Ruta Protegida. Retorna la lista de incidencias asignadas al técnico autenticado."
+)
+def listar_reportes_mantenimiento(
+    db: Session = Depends(get_db),
+    usuario_actual: UsuarioModel = Depends(get_current_user)
+):
+    """
+    Retorna únicamente los reportes donde 'asignado_a' coincide con el ID del técnico autenticado.
+    Comentario en español: Esta consulta implementa un filtro de seguridad a nivel de base de datos
+    para asegurar que el personal técnico tenga acceso exclusivo a sus asignaciones correspondientes,
+    previniendo accesos indebidos por red.
+    """
+    try:
+        reportes = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.asignado_a == usuario_actual.id).all()
+        
+        # Serialización segura utilizando el mapper del servicio
+        return [ReporteService._reporte_a_dict(r) for r in reportes]
+    except Exception as db_err:
+        logger.error(f"❌ [DATABASE ERROR] Error al consultar reportes asignados: {db_err}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Error de base de datos al recuperar sus asignaciones de mantenimiento."
+        )
+
