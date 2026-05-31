@@ -7,7 +7,7 @@
  */
 
 // URL base del backend de la API (por defecto Uvicorn corre en el puerto 8000)
-const API_URL = "http://localhost:8000/api";
+const API_URL = window.location.origin + "/api";
 
 document.addEventListener("DOMContentLoaded", () => {
     inicializarFormularios();

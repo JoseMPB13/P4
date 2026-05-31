@@ -6,7 +6,7 @@
  */
 
 // URL base de la API backend de FastAPI
-export const API_URL = "http://localhost:8000/api";
+export const API_URL = window.location.origin + "/api";
 
 /**
  * Envoltura personalizada de fetch que inyecta automáticamente el token JWT.

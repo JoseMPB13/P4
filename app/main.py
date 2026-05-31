@@ -26,6 +26,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
 from datetime import datetime, timezone
 import logging
 # Comentario en español: Importamos threading y asyncio para correr la escucha de Redis Pub/Sub en segundo plano
@@ -375,13 +376,14 @@ app.include_router(reportes_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(usuarios_router, prefix="/api")
 
-@app.get("/", tags=["General"], summary="Raíz de la API")
-def raiz():
-    return {
-        "plataforma": "Reportes de Infraestructura Universitaria",
-        "docs": "/docs",
-        "endpoints_base": "/api/reportes"
-    }
+# Comentado para permitir que la raíz "/" sirva el frontend estático (index.html)
+# @app.get("/", tags=["General"], summary="Raíz de la API")
+# def raiz():
+#     return {
+#         "plataforma": "Reportes de Infraestructura Universitaria",
+#         "docs": "/docs",
+#         "endpoints_base": "/api/reportes"
+#     }
 
 @app.get("/health", tags=["General"], summary="Estado de Salud (Healthcheck)")
 def verificar_salud():
@@ -398,6 +400,9 @@ def verificar_salud():
         "persistencia": "PostgreSQL (SQLAlchemy)",
         "redis": estado_redis
     }
+
+# Montar los archivos estáticos en la raíz (estrictamente después de los endpoints de la API)
+app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
 
 if __name__ == "__main__":
     import os
