@@ -277,8 +277,10 @@ class ReporteService:
             hubo_cambio = True
             accion = "asignar_tecnico"
 
-        # Inyectar registro inmutable de trazabilidad si hay cambios y se provee autor de la edición
-        if hubo_cambio and autor_id is not None:
+        # Inyectar registro inmutable de trazabilidad si hay cambios en el estado y se provee autor de la edición
+        # Comentario en español: Esta guarda condicional previene que se registren transiciones de estado idénticas
+        # (transición fantasma de tipo "de pendiente a pendiente") en la bitácora de auditoría al actualizar campos que no sean el estado.
+        if estado_previo != reporte.estado and autor_id is not None:
             from app.models.historial import HistorialEstadosModel
             nuevo_historial = HistorialEstadosModel(
                 reporte_id=reporte.id,
