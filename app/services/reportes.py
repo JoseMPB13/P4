@@ -262,6 +262,7 @@ class ReporteService:
         estado_previo = reporte.estado
         tecnico_previo = reporte.asignado_a
         hubo_cambio = False
+        accion = "actualizar_estado"
 
         if reporte_en.prioridad is not None:
             reporte.prioridad = reporte_en.prioridad
@@ -269,10 +270,12 @@ class ReporteService:
         if reporte_en.estado is not None and reporte_en.estado != estado_previo:
             reporte.estado = reporte_en.estado
             hubo_cambio = True
+            accion = "actualizar_estado"
 
         if reporte_en.asignado_a is not None and reporte_en.asignado_a != tecnico_previo:
             reporte.asignado_a = reporte_en.asignado_a
             hubo_cambio = True
+            accion = "asignar_tecnico"
 
         # Inyectar registro inmutable de trazabilidad si hay cambios y se provee autor de la edición
         if hubo_cambio and autor_id is not None:
@@ -305,8 +308,11 @@ class ReporteService:
         canal = "study:reporte_actualizado"
         payload_datos = ReporteService._reporte_a_dict(reporte)
 
+        # Comentario en español: Inyectamos la propiedad 'accion' para romper el acoplamiento y
+        # permitir que el frontend clasifique la notificación flotante correctamente.
         mensaje = {
             "tipo": "reporte:actualizado",
+            "accion": accion,
             "payload": payload_datos,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "version": "1.0.0"
@@ -315,7 +321,7 @@ class ReporteService:
         try:
             redis_client = get_redis_client()
             redis_client.publish(canal, json.dumps(mensaje))
-            logger.info(f"Servicio: Evento 'reporte:actualizado' publicado en el canal '{canal}'.")
+            logger.info(f"Servicio: Evento 'reporte:actualizado' publicado en el canal '{canal}' con acción '{accion}'.")
         except Exception as err:
             logger.error(f"Servicio: No se pudo publicar el evento de actualización en Redis: {err}")
             

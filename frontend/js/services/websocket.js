@@ -169,11 +169,30 @@ class WebSocketService {
                 mensaje: `Incidencia de alta prioridad registrada en ${payload.ubicacion}.`
             });
         } else if (tipo === "reporte:actualizado" || tipo === "reporte:cambio_estado") {
-            notifier.show({
-                tipo: "success",
-                titulo: `Actualización: ${payload.titulo}`,
-                mensaje: `Estado cambiado a "${payload.estado.toUpperCase()}" en ${payload.ubicacion}.`
-            });
+            // Comentario en español: Leemos la propiedad 'accion' inyectada por el backend para discriminar 
+            // el tipo de notificación y evitar el solapamiento visual en las alertas Toast.
+            const accion = evento.accion || "actualizar_estado";
+
+            if (accion === "asignar_tecnico") {
+                const tecnicoNombre = payload.tecnico ? payload.tecnico.nombre : "sin asignar";
+                notifier.show({
+                    tipo: "success",
+                    titulo: `Técnico Asignado: ${payload.titulo}`,
+                    mensaje: `La tarea ha sido asignada a ${tecnicoNombre} en ${payload.ubicacion}.`
+                });
+            } else if (accion === "agregar_comentario") {
+                notifier.show({
+                    tipo: "info",
+                    titulo: `Nuevo Comentario: ${payload.titulo}`,
+                    mensaje: `Se ha registrado una nueva nota en la bitácora técnica de ${payload.ubicacion}.`
+                });
+            } else {
+                notifier.show({
+                    tipo: "success",
+                    titulo: `Actualización: ${payload.titulo}`,
+                    mensaje: `Estado cambiado a "${payload.estado.toUpperCase()}" en ${payload.ubicacion}.`
+                });
+            }
         } else if (tipo === "reporte:eliminado") {
             notifier.show({
                 tipo: "error",

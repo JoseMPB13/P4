@@ -832,6 +832,15 @@ export class AdminDashboard {
                     }
 
                     textarea.value = "";
+                    
+                    // Comentario en español: Alertamos localmente tras agregar un comentario exitoso
+                    // para dar confirmación instantánea antes de recargar.
+                    notifier.show({
+                        tipo: "success",
+                        titulo: "Nota Registrada",
+                        mensaje: "El comentario se ha añadido a la bitácora técnica."
+                    });
+
                     // Recargar reactivamente el modal para mostrar la nueva bitácora
                     await this.abrirModalIncidencia(id);
 
@@ -897,6 +906,22 @@ export class AdminDashboard {
             if (!respuesta.ok) {
                 const err = await respuesta.json();
                 throw new Error(err.detail || "Fallo en la petición.");
+            }
+
+            // Comentario en español: Alertamos localmente al administrador sobre el éxito de la asignación
+            // o modificación de propiedades de la incidencia utilizando notifier.show().
+            if (campoLabel === "técnico asignado") {
+                notifier.show({
+                    tipo: "success",
+                    titulo: "Técnico Asignado",
+                    mensaje: "El personal técnico ha sido asignado con éxito."
+                });
+            } else {
+                notifier.show({
+                    tipo: "success",
+                    titulo: "Propiedad Guardada",
+                    mensaje: "Se actualizó el campo correctamente."
+                });
             }
 
         } catch (error) {

@@ -417,6 +417,7 @@ def agregar_comentario(
             payload_datos = ReporteService._reporte_a_dict(db_reporte_completo)
             mensaje = {
                 "tipo": "reporte:actualizado",
+                "accion": "agregar_comentario",
                 "payload": payload_datos,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "version": "1.0.0"
