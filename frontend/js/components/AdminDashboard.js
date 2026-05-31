@@ -36,7 +36,7 @@ export class AdminDashboard {
             <div style="max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem;">
                 
                 <!-- Encabezado de la página -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <div class="admin-header">
                     <div>
                         <span class="badge-minimal badge-success" style="background-color: rgba(16, 185, 129, 0.15); color: var(--accent-green);">Administrador</span>
                         <h2 style="font-size: 2.25rem; margin-top: 0.5rem; font-weight: 800; letter-spacing: -0.03em;">Panel de Administración</h2>
@@ -143,7 +143,7 @@ export class AdminDashboard {
 
         if (this.currentTab === "incidencias") {
             contentContainer.innerHTML = `
-                <div class="spa-grid" style="grid-template-columns: 2fr 1fr; padding: 0; gap: 2rem;">
+                <div class="spa-grid admin-grid" style="padding: 0;">
                     
                     <!-- Columna Izquierda: Listado y Acciones de Auditoría -->
                     <div>
@@ -628,7 +628,7 @@ export class AdminDashboard {
             `;
 
             detailsBody.innerHTML = `
-                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 2rem;">
+                <div class="admin-modal-grid">
                     <!-- Columna Izquierda: Información de la Incidencia -->
                     <div style="display: flex; flex-direction: column; gap: 1rem;">
                         <div>
@@ -650,7 +650,7 @@ export class AdminDashboard {
                     </div>
 
                     <!-- Columna Derecha: Diagnóstico y Trazabilidad -->
-                    <div style="border-left: 1px solid var(--border-color); padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div class="admin-modal-right-col">
                         ${selectTecnicoHTML}
                         ${selectEstadoHTML}
                         ${timelineHTML}

@@ -399,9 +399,9 @@ def agregar_comentario(
     # Invalidar cachés para asegurar actualización inmediata
     try:
         redis_client = get_redis_client()
-        redis_client.delete("study:reportes:all")
+        redis_client.delete("campus:reportes:all")
         redis_client.delete("cache:reportes")
-        redis_client.delete(f"study:reportes:{id}")
+        redis_client.delete(f"campus:reportes:{id}")
         logger.info(f"📡 [REDIS CACHE] Cachés invalidadas tras registrar comentario en reporte #{id}.")
 
         # Comentario en español: Publicar evento de actualización en el canal Redis Pub/Sub para propagación
@@ -422,8 +422,8 @@ def agregar_comentario(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "version": "1.0.0"
             }
-            redis_client.publish("study:reporte_actualizado", json.dumps(mensaje))
-            logger.info(f"📡 [REDIS PUB/SUB] Evento de comentario publicado en 'study:reporte_actualizado' para reporte #{id}.")
+            redis_client.publish("campus:estado:actualizado", json.dumps(mensaje))
+            logger.info(f"📡 [REDIS PUB/SUB] Evento de comentario publicado en 'campus:estado:actualizado' para reporte #{id}.")
     except Exception as err:
         logger.error(f"❌ [REDIS ERROR] Falló la invalidación o publicación tras registrar comentario: {err}")
 

@@ -109,7 +109,7 @@ def redis_pubsub_listener():
       hasta alcanzar un tope máximo de 60 segundos.
     - Al reestablecer exitosamente la suscripción y recibir mensajes, se reinicia el retraso.
     """
-    logger.info("📡 [Redis Listener Thread] Iniciando escucha en el patrón 'study:*'...")
+    logger.info("📡 [Redis Listener Thread] Iniciando escucha en el patrón 'campus:*'...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
@@ -124,8 +124,8 @@ def redis_pubsub_listener():
             redis_client.ping()
             
             pubsub_obj = redis_client.pubsub()
-            pubsub_obj.psubscribe("study:*")
-            logger.info("📡 [Redis Listener Thread] Suscripción exitosa a 'study:*' en Redis Pub/Sub.")
+            pubsub_obj.psubscribe("campus:*")
+            logger.info("📡 [Redis Listener Thread] Suscripción exitosa a 'campus:*' en Redis Pub/Sub.")
             
             # Conexión exitosa establecida: reestablecemos el backoff al valor inicial
             backoff = 1

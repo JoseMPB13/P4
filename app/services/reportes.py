@@ -103,7 +103,7 @@ class ReporteService:
         Comentario en español: Lógica de caché de lectura: primero consulta Redis para evitar
         consultas repetidas a la base de datos de Supabase. Si no existe, realiza el query y guarda en caché.
         """
-        clave_cache = "study:reportes:all"
+        clave_cache = "campus:reportes:all"
         try:
             redis_client = get_redis_client()
             cached_data = redis_client.get(clave_cache)
@@ -140,7 +140,7 @@ class ReporteService:
         Comentario en español: Verifica en la caché de Redis la existencia del reporte individual
         bajo el patrón de clave 'study:reportes:{id}'. Si no existe, se consulta en la base de datos relacional.
         """
-        clave_cache = f"study:reportes:{id}"
+        clave_cache = f"campus:reportes:{id}"
         try:
             redis_client = get_redis_client()
             cached_data = redis_client.get(clave_cache)
@@ -207,13 +207,13 @@ class ReporteService:
         # === EVICCIÓN / INVALIDACIÓN DE CACHÉ ===
         try:
             redis_client = get_redis_client()
-            redis_client.delete("study:reportes:all")
-            logger.info("📡 [REDIS CACHE] Caché global 'study:reportes:all' invalidada tras creación.")
+            redis_client.delete("campus:reportes:all")
+            logger.info("📡 [REDIS CACHE] Caché global 'campus:reportes:all' invalidada tras creación.")
         except Exception as err:
             logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras creación: {err}")
 
         # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        canal = "study:reporte_creado"
+        canal = "campus:reporte:nuevo"
         
         # Consultamos el reporte completo cargando relaciones para armar el mensaje de mensajería
         db_reporte_completo = db.query(ReporteModel).options(
@@ -299,15 +299,16 @@ class ReporteService:
         # === EVICCIÓN / INVALIDACIÓN DE CACHÉ ===
         try:
             redis_client = get_redis_client()
-            redis_client.delete("study:reportes:all")
+            redis_client.delete("campus:reportes:all")
             redis_client.delete("cache:reportes")
-            redis_client.delete(f"study:reportes:{id}")
-            logger.info(f"📡 [REDIS CACHE] Cachés ('cache:reportes', 'study:reportes:all', ID {id}) invalidadas tras actualización.")
+            redis_client.delete(f"campus:reportes:{id}")
+            logger.info(f"📡 [REDIS CACHE] Cachés ('cache:reportes', 'campus:reportes:all', ID {id}) invalidadas tras actualización.")
         except Exception as err:
             logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras actualización: {err}")
 
         # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        canal = "study:reporte_actualizado"
+        # Si el estado es resuelto, publicamos en 'campus:resuelto', de lo contrario en 'campus:estado:actualizado'
+        canal = "campus:resuelto" if reporte.estado == "resuelto" else "campus:estado:actualizado"
         payload_datos = ReporteService._reporte_a_dict(reporte)
 
         # Comentario en español: Inyectamos la propiedad 'accion' para romper el acoplamiento y
@@ -350,17 +351,17 @@ class ReporteService:
         # === EVICCIÓN / INVALIDACIÓN DE CACHÉ ===
         try:
             redis_client = get_redis_client()
-            redis_client.delete("study:reportes:all")
-            redis_client.delete(f"study:reportes:{id}")
+            redis_client.delete("campus:reportes:all")
+            redis_client.delete(f"campus:reportes:{id}")
             logger.info(f"📡 [REDIS CACHE] Cachés invalidadas para reporte ID {id} y listado global tras eliminación.")
         except Exception as err:
             logger.error(f"📡 [REDIS CACHE ERROR] Error al invalidar la caché tras eliminación: {err}")
 
         # === PUBLICADOR DE EVENTOS ASÍNCRONOS (REDIS PUB/SUB) ===
-        # Comentario en español: Publicamos el evento de eliminación en el canal study:reporte_eliminado.
+        # Comentario en español: Publicamos el evento de eliminación en el canal campus:reporte:eliminado.
         # Esto asegura que todos los clientes suscritos (vía WebSockets) reciban la confirmación
         # en tiempo real de que el reporte físico ha sido removido y puedan responder en sus interfaces.
-        canal = "study:reporte_eliminado"
+        canal = "campus:reporte:eliminado"
         mensaje = {
             "tipo": "reporte:eliminado",
             "payload": {"id": id},
