@@ -163,6 +163,41 @@ def listar_reportes(db: Session = Depends(get_db)):
     return datos_serializados
 
 
+# Comentario en español: Esta ruta se posiciona antes de la ruta dinámica '/{id}'
+# para evitar que FastAPI intente parsear el string literal 'mantenimiento' como un ID numérico (error 422).
+@router.get(
+    "/mantenimiento",
+    response_model=List[ReporteResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Listar reportes asignados al personal de mantenimiento",
+    description="Ruta Protegida. Retorna la lista de incidencias asignadas al técnico autenticado."
+)
+def listar_reportes_mantenimiento(
+    db: Session = Depends(get_db),
+    usuario_actual: UsuarioModel = Depends(get_current_user)
+):
+    """
+    Retorna únicamente los reportes donde 'asignado_a' coincide con el ID del técnico autenticado.
+    Comentario en español: Esta consulta implementa un filtro de seguridad a nivel de base de datos
+    para asegurar que el personal técnico tenga acceso exclusivo a sus asignaciones correspondientes,
+    previniendo accesos indebidos por red.
+    """
+    try:
+        reportes = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.asignado_a == usuario_actual.id).all()
+        
+        # Serialización segura utilizando el mapper del servicio
+        return [ReporteService._reporte_a_dict(r) for r in reportes]
+    except Exception as db_err:
+        logger.error(f"❌ [DATABASE ERROR] Error al consultar reportes asignados: {db_err}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Error de base de datos al recuperar sus asignaciones de mantenimiento."
+        )
+
+
 @router.get(
     "/{id}",
     response_model=ReporteResponse,
@@ -394,35 +429,5 @@ def agregar_comentario(
     return nuevo_comentario
 
 
-@router.get(
-    "/mantenimiento",
-    response_model=List[ReporteResponse],
-    status_code=status.HTTP_200_OK,
-    summary="Listar reportes asignados al personal de mantenimiento",
-    description="Ruta Protegida. Retorna la lista de incidencias asignadas al técnico autenticado."
-)
-def listar_reportes_mantenimiento(
-    db: Session = Depends(get_db),
-    usuario_actual: UsuarioModel = Depends(get_current_user)
-):
-    """
-    Retorna únicamente los reportes donde 'asignado_a' coincide con el ID del técnico autenticado.
-    Comentario en español: Esta consulta implementa un filtro de seguridad a nivel de base de datos
-    para asegurar que el personal técnico tenga acceso exclusivo a sus asignaciones correspondientes,
-    previniendo accesos indebidos por red.
-    """
-    try:
-        reportes = db.query(ReporteModel).options(
-            joinedload(ReporteModel.usuario),
-            joinedload(ReporteModel.tecnico)
-        ).filter(ReporteModel.asignado_a == usuario_actual.id).all()
-        
-        # Serialización segura utilizando el mapper del servicio
-        return [ReporteService._reporte_a_dict(r) for r in reportes]
-    except Exception as db_err:
-        logger.error(f"❌ [DATABASE ERROR] Error al consultar reportes asignados: {db_err}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Error de base de datos al recuperar sus asignaciones de mantenimiento."
-        )
+
 
