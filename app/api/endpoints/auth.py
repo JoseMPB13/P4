@@ -87,53 +87,19 @@ def registrar_usuario(payload: UsuarioCreate, db: Session = Depends(get_db)):
     summary="Iniciar sesión y obtener token",
     description="Autentica las credenciales (correo y contraseña) del usuario y retorna un Token JWT válido por 1 hora."
 )
-async def iniciar_sesion(request: Request, db: Session = Depends(get_db)):
+def iniciar_sesion(payload: UsuarioLogin, db: Session = Depends(get_db)):
     """
     Controlador para autenticar usuarios mediante credenciales básicas.
     
-    Soporta dos formatos de payload:
-    - application/json: Utilizado por el frontend SPA de la aplicación.
-    - application/x-www-form-urlencoded: Utilizado por el botón 'Authorize' de Swagger UI.
+    ¿Por qué 200 OK?: Indica que las credenciales son válidas y retorna un cuerpo JSON
+    estructurado con el Token de acceso JWT.
+    
+    ¿Por qué 401 Unauthorized?: Si el usuario no existe en la base de datos o si la
+    verificación criptográfica de la contraseña con bcrypt falla, se deniega el acceso
+    sin proveer detalles específicos de cuál falló (previniendo enumeración de usuarios).
     """
-    content_type = request.headers.get("content-type", "")
-    email = None
-    password = None
-
-    if "application/json" in content_type:
-        try:
-            body = await request.json()
-            email = body.get("email")
-            password = body.get("password")
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Formato JSON no válido."
-            )
-    elif "application/x-www-form-urlencoded" in content_type:
-        try:
-            form_data = await request.form()
-            # Swagger UI envía el correo en el campo 'username'
-            email = form_data.get("username")
-            password = form_data.get("password")
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Formato de formulario no válido."
-            )
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Tipo de contenido no soportado. Debe ser application/json o application/x-www-form-urlencoded."
-        )
-
-    if not email or not password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El correo electrónico y la contraseña son campos obligatorios."
-        )
-
     # 1. Buscar al usuario por correo electrónico en la base de datos
-    usuario = db.query(UsuarioModel).filter(UsuarioModel.email == email).first()
+    usuario = db.query(UsuarioModel).filter(UsuarioModel.email == payload.email).first()
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -141,7 +107,7 @@ async def iniciar_sesion(request: Request, db: Session = Depends(get_db)):
         )
     
     # 2. Verificar criptográficamente si la contraseña en texto plano coincide con el hash almacenado
-    password_valido = AuthService.verificar_password(password, usuario.hashed_password)
+    password_valido = AuthService.verificar_password(payload.password, usuario.hashed_password)
     if not password_valido:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

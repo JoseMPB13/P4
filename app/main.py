@@ -349,16 +349,13 @@ def custom_openapi():
     if "components" not in openapi_schema:
         openapi_schema["components"] = {}
         
-    # Inyectar la configuración de seguridad Bearer JWT con flujo de contraseña OAuth2
+    # Inyectar la configuración de seguridad Bearer JWT directa en lugar del flujo de contraseña OAuth2
     openapi_schema["components"]["securitySchemes"] = {
         "OAuth2PasswordBearer": {
-            "type": "oauth2",
-            "flows": {
-                "password": {
-                    "tokenUrl": "/api/auth/login",
-                    "scopes": {}
-                }
-            }
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Ingresa el token JWT directamente para autorizar las solicitudes."
         }
     }
     
