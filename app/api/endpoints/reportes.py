@@ -120,7 +120,7 @@ def listar_reportes(db: Session = Depends(get_db)):
     Retorna la lista de reportes registrados.
     
     ¿Por qué es público?: Cualquier persona de la comunidad universitaria puede listar
-    los reportes e incidencias existentes sin necesidad de estar logueado.
+    los reportes, fallas o problemas existentes sin necesidad de estar logueado.
     """
     # Comentario en español: 1. Comprobar si existe la clave 'cache:reportes' en Redis (Flujo Cache Hit)
     try:
@@ -170,7 +170,7 @@ def listar_reportes(db: Session = Depends(get_db)):
     response_model=List[ReporteResponse],
     status_code=status.HTTP_200_OK,
     summary="Listar reportes asignados al personal de mantenimiento",
-    description="Ruta Protegida. Retorna la lista de incidencias asignadas al técnico autenticado."
+    description="Ruta Protegida. Retorna la lista de fallas o problemas asignados al técnico autenticado."
 )
 def listar_reportes_mantenimiento(
     db: Session = Depends(get_db),
@@ -220,7 +220,7 @@ def obtener_reporte(id: int, db: Session = Depends(get_db)):
     response_model=ReporteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear un reporte",
-    description="Ruta Protegida. Requiere cabecera 'Authorization: Bearer <TOKEN>'. Crea un reporte de incidencia desde Multipart/Form-Data."
+    description="Ruta Protegida. Requiere cabecera 'Authorization: Bearer <TOKEN>'. Crea un reporte de falla o problema desde Multipart/Form-Data."
 )
 def crear_reporte(
     titulo: str = Form(...),
@@ -365,8 +365,8 @@ from app.models.comentario import ComentarioModel
     "/{id}/comentarios",
     response_model=ComentarioResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Agregar comentario a una incidencia",
-    description="Ruta Protegida. Registra un nuevo comentario/nota técnica asociado a la incidencia e invalida su caché."
+    summary="Agregar comentario a un problema o falla",
+    description="Ruta Protegida. Registra un nuevo comentario/nota técnica asociado al problema o falla e invalida su caché."
 )
 def agregar_comentario(
     id: int,

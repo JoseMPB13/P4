@@ -45,7 +45,7 @@ async function renderApp() {
             navbarContainer.innerHTML = `
                 <div class="brand-minimal">
                     <i class="bi bi-building-fill-gear brand-icon"></i>
-                    <span>UPDS <span style="font-weight: 300; opacity: 0.8;">Infraestructura</span></span>
+                    <span>Issue <span style="font-weight: 300; opacity: 0.8;">Realtime</span></span>
                 </div>
             `;
         }
@@ -68,7 +68,7 @@ async function renderApp() {
         navbarContainer.innerHTML = `
             <div class="brand-minimal">
                 <i class="bi bi-building-fill-gear brand-icon"></i>
-                <span>UPDS <span style="font-weight: 300; opacity: 0.8;">Infraestructura</span></span>
+                <span>Issue <span style="font-weight: 300; opacity: 0.8;">Realtime</span></span>
             </div>
             <ul class="nav-links">
                 <li class="ws-badge-container">

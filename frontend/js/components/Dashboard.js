@@ -165,7 +165,7 @@ export class Dashboard {
             <div class="flat-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <h3 style="font-weight: 700; margin: 0;">
-                        <i class="bi bi-list-task" style="color: var(--accent-blue); margin-right: 0.5rem;"></i>Monitoreo de Incidencias
+                        <i class="bi bi-list-task" style="color: var(--accent-blue); margin-right: 0.5rem;"></i>Monitoreo de Problemas o Fallas
                     </h3>
                     <button class="btn-minimal btn-outline" id="btn-refrescar-dashboard" style="padding: 0.4rem 0.75rem;">
                         <i class="bi bi-arrow-clockwise" id="refrescar-icon"></i>
@@ -177,7 +177,7 @@ export class Dashboard {
                         <thead>
                             <tr>
                                 <th style="width: 8%">ID</th>
-                                <th style="width: 37%">Incidencia</th>
+                                <th style="width: 37%">Problema o Falla</th>
                                 <th style="width: 20%">Ubicación</th>
                                 <th style="width: 15%">Tipo</th>
                                 <th style="width: 15%">Reportado por</th>

@@ -34,7 +34,7 @@ class ReporteModel(Base):
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Llaves foráneas
-    # usuario_id: Estudiante o usuario que reporta la incidencia
+    # usuario_id: Estudiante o usuario que reporta la falla o problema
     usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
     
     # asignado_a: Técnico de mantenimiento asignado para resolver el reporte

@@ -50,7 +50,7 @@ export class AdminDashboard {
                 <!-- Pestañas de Navegación Interna (Admin RBAC Views) -->
                 <div style="display: flex; gap: 1rem; border-bottom: 1px solid var(--border-color); margin-bottom: 2rem; padding-bottom: 0.25rem;">
                     <button class="btn-minimal ${this.currentTab === 'incidencias' ? 'btn-primary' : 'btn-outline'}" id="tab-incidencias" style="padding: 0.5rem 1.25rem;">
-                        <i class="bi bi-file-earmark-text me-1"></i> Incidencias
+                        <i class="bi bi-file-earmark-text me-1"></i> Problemas o Fallas
                     </button>
                     <button class="btn-minimal ${this.currentTab === 'usuarios' ? 'btn-primary' : 'btn-outline'}" id="tab-usuarios" style="padding: 0.5rem 1.25rem;">
                         <i class="bi bi-people-fill me-1"></i> Usuarios
@@ -78,7 +78,7 @@ export class AdminDashboard {
             <div id="incidencia-modal" class="modal-overlay">
                 <div class="modal-content glassmorphism">
                     <div class="modal-header">
-                        <h3 id="modal-title">Detalle de Incidencia</h3>
+                        <h3 id="modal-title">Detalle de Falla o Problema</h3>
                         <button class="modal-close-btn" id="btn-close-modal">&times;</button>
                     </div>
                     <div class="modal-body" id="modal-details-body">
@@ -148,14 +148,14 @@ export class AdminDashboard {
                     <!-- Columna Izquierda: Listado y Acciones de Auditoría -->
                     <div>
                         <div style="margin-bottom: 1rem;">
-                            <h3 style="font-weight: 700; margin: 0;">Auditoría de Incidencias</h3>
+                            <h3 style="font-weight: 700; margin: 0;">Auditoría de Problemas o Fallas</h3>
                         </div>
                         <div class="table-wrapper">
                             <table class="table-minimal" id="admin-audit-table">
                                 <thead>
                                     <tr>
                                         <th style="width: 8%">ID</th>
-                                        <th style="width: 35%">Incidencia</th>
+                                        <th style="width: 35%">Problema o Falla</th>
                                         <th style="width: 20%">Ubicación</th>
                                         <th style="width: 22%">Reportado Por</th>
                                         <th style="width: 10%">Estado</th>
@@ -288,7 +288,7 @@ export class AdminDashboard {
                 metricsGrid.innerHTML = `
                     <div class="stat-box-minimal">
                         <div class="stat-number" style="color: var(--text-primary);">${total}</div>
-                        <div class="stat-label">Total Incidencias</div>
+                        <div class="stat-label">Total Problemas o Fallas</div>
                     </div>
                     <div class="stat-box-minimal">
                         <div class="stat-number warning">${pendientes}</div>
@@ -310,7 +310,7 @@ export class AdminDashboard {
                     auditTableBody.innerHTML = `
                         <tr>
                             <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                                No hay incidencias registradas en la base de datos.
+                                No hay problemas o fallas registradas en la base de datos.
                             </td>
                         </tr>
                     `;
@@ -991,7 +991,7 @@ export class AdminDashboard {
             // eliminar con éxito el reporte en el servidor, garantizando feedback visual rápido.
             notifier.show({
                 tipo: "success",
-                titulo: "Incidencia Eliminada",
+                titulo: "Falla o Problema Eliminado",
                 mensaje: "El registro fue borrado localmente"
             });
 

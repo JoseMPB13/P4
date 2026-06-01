@@ -39,7 +39,7 @@ export class EstudianteDashboard {
                 <!-- Encabezado de la página -->
                 <div style="margin-bottom: 2rem;">
                     <span class="badge-minimal badge-estudiante">Estudiante</span>
-                    <h2 style="font-size: 2.25rem; margin-top: 0.5rem; font-weight: 800; letter-spacing: -0.03em;">Mis Incidencias</h2>
+                    <h2 style="font-size: 2.25rem; margin-top: 0.5rem; font-weight: 800; letter-spacing: -0.03em;">Mis Problemas o Fallas</h2>
                     <p class="text-muted-custom">Registra desperfectos del campus y mantente al tanto del estado de resolución.</p>
                 </div>
 

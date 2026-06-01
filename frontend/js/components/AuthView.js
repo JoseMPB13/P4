@@ -27,7 +27,7 @@ export class AuthView {
                 <div class="flat-card" style="width: 100%; max-width: 450px;">
                     <div style="text-align: center; margin-bottom: 2rem;">
                         <i class="bi bi-building-fill-gear" style="font-size: 3.5rem; color: var(--accent); display: block; margin-bottom: 0.75rem;"></i>
-                        <h2 style="font-weight: 800; font-size: 1.75rem; letter-spacing: -0.02em;">UPDS Infraestructura</h2>
+                        <h2 style="font-weight: 800; font-size: 1.75rem; letter-spacing: -0.02em;">Issue Realtime</h2>
                         <p class="text-muted-custom">Inicia sesión para reportar o monitorear desperfectos</p>
                     </div>
                     

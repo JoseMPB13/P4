@@ -27,7 +27,7 @@ class ReporteBase(BaseModel):
     )
     descripcion: str = Field(
         ...,
-        description="Descripción detallada de la incidencia u observación",
+        description="Descripción detallada del problema, falla u observación",
         examples=["Se filtra agua del piso superior justo sobre el tomacorriente de la pared este."]
     )
     tipo_problema: str = Field(
@@ -42,7 +42,7 @@ class ReporteBase(BaseModel):
     )
     imagen_url: Optional[str] = Field(
         None,
-        description="URL opcional de una imagen de respaldo para la incidencia",
+        description="URL opcional de una imagen de respaldo para la falla o problema",
         examples=["https://mi-storage.universidad.edu.bo/reportes/gotera102.jpg"]
     )
 
@@ -152,9 +152,9 @@ class ReporteResponse(ReporteBase):
 
     # Comentarios en español: Agregamos campos para incrustar las relaciones del autor y técnico asignado,
     # correspondientes al 'include: { autor: true }' de Prisma en el esquema relacional.
-    usuario: Optional[UsuarioResponse] = Field(None, description="Usuario/Autor que creó la incidencia")
+    usuario: Optional[UsuarioResponse] = Field(None, description="Usuario/Autor que creó el reporte de falla o problema")
     tecnico: Optional[UsuarioResponse] = Field(None, description="Técnico de soporte asignado al reporte")
-    comentarios: Optional[List[ComentarioResponse]] = Field(default=[], description="Lista de comentarios asociados a la incidencia")
+    comentarios: Optional[List[ComentarioResponse]] = Field(default=[], description="Lista de comentarios asociados al reporte")
     historial: Optional[List[HistorialEstadosResponse]] = Field(default=[], description="Bitácora histórica de cambios de estado")
 
     # Configuración de Pydantic V2 para soportar la carga desde modelos ORM (como SQLAlchemy)

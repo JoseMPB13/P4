@@ -51,11 +51,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Instancia de FastAPI con metadatos personalizados para OpenAPI
 app = FastAPI(
-    title="Plataforma de Reportes de Infraestructura Universitaria API",
+    title="Issue Realtime",
     description=(
-        "Backend para la administración de incidencias de infraestructura universitaria. "
+        "Backend para la administración de problemas o fallas de infraestructura universitaria. "
         "Permite el registro, priorización, control de estados de reportes y difusión de eventos mediante Redis."
     ),
     version="1.0.0",

@@ -2,7 +2,7 @@
 """
 Servicio de Integración con Supabase Storage.
 Responsabilidad: Conectarse al almacenamiento de objetos de Supabase para subir
-evidencia fotográfica de incidencias de infraestructura universitaria.
+evidencia fotográfica de fallas o problemas de infraestructura universitaria.
 
 Este servicio utiliza la biblioteca estándar de Python (urllib.request) para
 realizar peticiones HTTP directas seguras a la API REST de Supabase Storage.

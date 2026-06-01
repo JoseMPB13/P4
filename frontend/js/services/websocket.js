@@ -159,14 +159,14 @@ class WebSocketService {
             const esCritica = payload.prioridad === "alta" || payload.prioridad === "critica";
             notifier.show({
                 tipo: esCritica ? "error" : "success",
-                titulo: esCritica ? `🚨 ALERTA CRÍTICA: ${payload.titulo}` : `Nueva Incidencia: ${payload.titulo}`,
-                mensaje: esCritica ? `Se ha registrado una incidencia urgente en ${payload.ubicacion}.` : `Reportada por ${payload.usuario?.nombre || "Usuario"} en ${payload.ubicacion}.`
+                titulo: esCritica ? `🚨 ALERTA CRÍTICA: ${payload.titulo}` : `Nuevo Reporte de Falla o Problema: ${payload.titulo}`,
+                mensaje: esCritica ? `Se ha registrado una falla o problema urgente en ${payload.ubicacion}.` : `Reportada por ${payload.usuario?.nombre || "Usuario"} en ${payload.ubicacion}.`
             });
         } else if (tipo === "reporte:critico") {
             notifier.show({
                 tipo: "error",
                 titulo: `🚨 ALERTA CRÍTICA: ${payload.titulo}`,
-                mensaje: `Incidencia de alta prioridad registrada en ${payload.ubicacion}.`
+                mensaje: `Falla o problema de alta prioridad registrado en ${payload.ubicacion}.`
             });
         } else if (tipo === "reporte:actualizado" || tipo === "reporte:cambio_estado") {
             // Comentario en español: Leemos la propiedad 'accion' inyectada por el backend para discriminar 
@@ -196,13 +196,13 @@ class WebSocketService {
         } else if (tipo === "reporte:eliminado") {
             notifier.show({
                 tipo: "error",
-                titulo: "Incidencia Removida",
+                titulo: "Falla o Problema Removido",
                 mensaje: "El reporte ha sido eliminado del sistema"
             });
         } else if (tipo === "comentario:creado") {
             notifier.show({
                 tipo: "warning",
-                titulo: `Nuevo Comentario: ${payload.reporte_titulo || "Incidencia"}`,
+                titulo: `Nuevo Comentario: ${payload.reporte_titulo || "Falla o Problema"}`,
                 mensaje: `Un técnico ha agregado una actualización a la bitácora.`
             });
         }

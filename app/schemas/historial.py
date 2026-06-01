@@ -2,7 +2,7 @@
 """
 Módulo de Esquemas de Pydantic para el Historial de Estados (DTOs).
 Responsabilidad: Estructurar la salida de auditoría de cambios de estado
-de las incidencias de infraestructura.
+ de las fallas o problemas de infraestructura.
 """
 
 from datetime import datetime

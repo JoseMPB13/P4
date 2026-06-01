@@ -43,7 +43,7 @@ export class PersonalDashboard {
                 <!-- Encabezado de la página -->
                 <div style="margin-bottom: 2rem;">
                     <span class="badge-minimal badge-warning">Técnico</span>
-                    <h2 style="font-size: 2.25rem; margin-top: 0.5rem; font-weight: 800; letter-spacing: -0.03em;">Bandeja de Incidencias</h2>
+                    <h2 style="font-size: 2.25rem; margin-top: 0.5rem; font-weight: 800; letter-spacing: -0.03em;">Bandeja de Problemas o Fallas</h2>
                     <p class="text-muted-custom">Listado compacto de problemas asignados a tu cuenta y listos para atender en el campus.</p>
                 </div>
 
@@ -98,7 +98,7 @@ export class PersonalDashboard {
             // el cual filtra automáticamente por el ID del usuario en el token JWT.
             const respuesta = await apiFetch("/reportes/mantenimiento");
             if (!respuesta.ok) {
-                throw new Error("Error al obtener la lista de incidencias asignadas.");
+                throw new Error("Error al obtener la lista de fallas o problemas asignados.");
             }
             const reportes = await respuesta.json();
 
@@ -110,7 +110,7 @@ export class PersonalDashboard {
                     <div class="glass-task-card" style="text-align: center; padding: 4rem 2rem; border-left: 5px solid hsl(142, 50%, 45%);">
                         <i class="bi bi-emoji-smile" style="color: var(--accent-green); font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
                         <h4 style="font-weight: 700; margin-bottom: 0.5rem;">¡Bandeja vacía!</h4>
-                        <p class="text-muted-custom">No tienes incidencias pendientes asignadas en este momento.</p>
+                        <p class="text-muted-custom">No tienes problemas o fallas pendientes asignados en este momento.</p>
                     </div>
                 `;
                 return;
@@ -239,7 +239,7 @@ export class PersonalDashboard {
         // Comentario en español: Construimos de forma condicional la sección de evidencia.
         // Si no hay imagen_url, renderizamos el placeholder estético con bordes de guión e icono gris.
         const imagenHTML = reporte.imagen_url 
-            ? `<img src="${reporte.imagen_url}" alt="Evidencia de la incidencia" class="evidence-img-large" />` 
+            ? `<img src="${reporte.imagen_url}" alt="Evidencia de la falla o problema" class="evidence-img-large" />` 
             : `<div class="evidence-image-placeholder">
                  <i class="bi bi-camera-video-off-fill"></i>
                  <span>Sin evidencia fotográfica adjunta</span>
@@ -266,7 +266,7 @@ export class PersonalDashboard {
         modalDiv.innerHTML = `
             <div class="modal-content glassmorphism" style="max-width: 800px; width: 90%; background: rgba(17, 24, 39, 0.95); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 2rem;">
                 <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">Detalles de la Incidencia #${reporte.id}</h3>
+                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">Detalles de la Falla o Problema #${reporte.id}</h3>
                     <button class="modal-close-btn" id="modal-close" style="background: none; border: none; color: var(--text-secondary); font-size: 1.75rem; cursor: pointer;">&times;</button>
                 </div>
                 
@@ -393,14 +393,14 @@ export class PersonalDashboard {
             });
 
             if (!respuesta.ok) {
-                throw new Error("No fue posible actualizar el estado de la incidencia.");
+                throw new Error("No fue posible actualizar el estado de la falla o problema.");
             }
 
             // Comentario en español: Notificación visual tipo Toast que salta al técnico tras cambiar estado
             notifier.show({
                 tipo: "success",
                 titulo: "Estado Actualizado",
-                mensaje: `La incidencia #${id} ha sido marcada como '${nuevoEstado.toUpperCase()}' correctamente.`
+                mensaje: `La falla o problema #${id} ha sido marcada como '${nuevoEstado.toUpperCase()}' correctamente.`
             });
 
             // Recargar bandeja y estadísticas principales

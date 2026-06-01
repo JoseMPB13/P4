@@ -39,7 +39,7 @@ export class ReportForm {
             this.contenedor.innerHTML = `
                 <div class="flat-card">
                     <h3 style="margin-bottom: 0.5rem;">
-                        <i class="bi bi-exclamation-triangle-fill" style="color: var(--accent); margin-right: 0.5rem;"></i>Nueva Incidencia
+                        <i class="bi bi-exclamation-triangle-fill" style="color: var(--accent); margin-right: 0.5rem;"></i>Nuevo Reporte de Falla o Problema
                     </h3>
                     <p class="text-muted-custom" style="margin-bottom: 1.5rem;">
                         Hola, <strong>${usuario.nombre}</strong>. Registra fallas físicas detectadas para su reparación inmediata.
@@ -215,7 +215,7 @@ export class ReportForm {
                     throw new Error(data.error || data.detail || "Error al registrar el reporte.");
                 }
 
-                this.mostrarAlerta("success", "✅ ¡Incidencia reportada con éxito!");
+                this.mostrarAlerta("success", "✅ ¡Falla o problema reportado con éxito!");
                 form.reset();
                 this.limpiarVistaPrevia();
 
