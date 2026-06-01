@@ -63,6 +63,10 @@ Resources:
       # Es ideal para entornos escolares o de pruebas simuladas en LocalStack, ya que no genera costos
       # cuando la base de datos se encuentra inactiva, y escala automáticamente ante picos de uso.
       BillingMode: PAY_PER_REQUEST
+      # Especificación de TTL (Time to Live) activo para logs
+      TimeToLiveSpecification:
+        AttributeName: expirationTime
+        Enabled: true
 
   # =========================================================================
   # 3. PARÁMETRO EN EL SSM PARAMETER STORE PARA LA URL DE LA API

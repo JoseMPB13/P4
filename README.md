@@ -1,163 +1,150 @@
-# Reportes de Infraestructura Universitaria - Backend
+# Issue Realtime
+### Plataforma Distribuida de Alta Disponibilidad para el Reporte y Seguimiento de Fallas en Tiempo Real (UPDS 2026)
 
-Este proyecto contiene la API backend y el sistema de mensajería para la plataforma de **Reportes de Infraestructura Universitaria**. El sistema está diseñado siguiendo principios de **Arquitectura Limpia (Clean Architecture)** orientada a capas y estructurado de forma modular en Python.
-
-La plataforma permite registrar incidencias y averías de la infraestructura del campus universitario, realizar seguimiento de su estado (pendiente, en proceso, resuelto) y publicar eventos asíncronos en tiempo real mediante Redis.
+**Issue Realtime** es un sistema distribuido de nivel empresarial desarrollado para la gestión digital instantánea de incidencias, fallas y problemas de infraestructura física dentro del campus universitario. Permite reportar problemas, adjuntar evidencias multimedia (fotos en la nube), asignar técnicos encargados de mantenimiento y presenciar la resolución de fallas en tiempo real de forma reactiva y sin recargar la página.
 
 ---
 
-## 🛠️ Estructura del Proyecto y Capas
+## 🚀 Enlaces de Producción
+*   **Servicios Web API / Frontend (Render)**: [https://p4-issue-realtime.onrender.com](https://p4-issue-realtime.onrender.com)
+*   **Documentación Interactiva (OpenAPI/Swagger)**: [https://p4-issue-realtime.onrender.com/docs](https://p4-issue-realtime.onrender.com/docs)
+*   **Estado de Salud del Backend (Healthcheck)**: [https://p4-issue-realtime.onrender.com/health](https://p4-issue-realtime.onrender.com/health)
 
-El backend se organiza bajo la siguiente estructura de directorios, donde cada capa tiene una única responsabilidad:
+---
+
+## 🛠️ Pila Tecnológica (Tech Stack)
+*   **Lenguaje**: Python 3.11+
+*   **Backend Framework**: FastAPI (Programación asíncrona ASGI)
+*   **Persistencia Relacional**: Supabase PostgreSQL (Motor transaccional)
+*   **Mapeador ORM**: SQLAlchemy 2.0 (Carga ansiosa optimizada con `joinedload`)
+*   **Mensajería y Caché**: Upstash Redis (Pub/Sub distributed events y Caché con expiración TTL)
+*   **Autenticación**: JSON Web Tokens (PyJWT) con encriptación Bcrypt para credenciales
+*   **Seguridad**: Middleware de Rate Limiting por IP (Redis) y cabeceras HTTP de seguridad (Helmet equivalent)
+*   **Infraestructura como Código (IaC)**: AWS CloudFormation (S3, DynamoDB con TTL y SSM Parameter Store)
+
+---
+
+## 📐 Arquitectura y Flujo del Sistema Distribuido
+
+La arquitectura del sistema está diseñada siguiendo principios de bajo acoplamiento y procesamiento en segundo plano (asíncrono):
 
 ```text
-├── app/                             # Directorio principal del backend
-│   ├── __init__.py                  # Inicialización y comentarios del módulo app
-│   ├── main.py                      # Punto de entrada principal (FastAPI app, middlewares, routers)
-│   ├── api/                         # Capa de transporte y enrutamiento web
-│   │   ├── __init__.py
-│   │   └── endpoints/               # Controladores HTTP (FastAPI APIRouter)
-│   │       ├── __init__.py
-│   │       └── reportes.py          # Rutas CRUD de la API REST para los reportes
-│   ├── core/                        # Núcleo y utilidades del sistema
-│   │   ├── __init__.py
-│   │   └── config.py                # Carga segura y validación de variables de entorno (.env)
-│   ├── models/                      # Capa de datos / Entidades de dominio
-│   │   ├── __init__.py
-│   │   └── reporte.py               # Definición del Modelo SQLAlchemy para la base de datos relacional
-│   ├── schemas/                     # Capa de validación / DTOs (Data Transfer Objects)
-│   │   ├── __init__.py
-│   │   └── reporte.py               # Modelos Pydantic para validar entradas y formatear respuestas
-│   ├── services/                    # Capa de lógica de negocio (Servicios)
-│   │   ├── __init__.py
-│   │   └── reportes.py              # Reglas de negocio y persistencia temporal en memoria (modo académico)
-│   └── redis/                       # Capa de infraestructura externa (Mensajería)
-│       ├── __init__.py
-│       └── client.py                # Inicialización del Pool de conexiones para el cliente de Redis
-├── subscriber.py                    # Script suscriptor independiente de Redis Pub/Sub (procesa eventos)
-├── .env                             # Configuración y variables del entorno local
-├── .gitignore                       # Exclusión de archivos y dependencias para Git
-├── requirements.txt                 # Archivo de dependencias del proyecto
-└── README.md                        # Esta documentación
+  [ Cliente Frontend SPA ] <======= (WebSockets /ws) ========+
+       |                                                     |
+  (Petición HTTP)                                            |
+       |                                                     |
+       v                                                     |
+  [ API FastAPI Enrutador ]                                  |
+       |                                                     |
+  (Transacción Relacional)                                   |
+       |                                                     |
+       v                                                     |
+  [ Supabase PostgreSQL ]                                    |
+       |                                                     |
+  (Confirmación commit)                                      |
+       |                                                     |
+       v                                                     |
+  [ FastAPI BackgroundTasks ]                                |
+       |                                                     |
+  (Publica Evento en Canal)                                  |
+       |                                                     |
+       v                                                     |
+  [ Upstash Redis Pub/Sub ]                                  |
+       |                                                     |
+  (Captura Evento y difunde)                                 |
+       +=====================================================+
+       |
+  (Escucha independiente)
+       v
+  [ subscriber.py (Consola Auditoría) ]
 ```
 
-### Responsabilidad de las Capas
-1. **Rutas (api/endpoints/)**: Reciben las peticiones HTTP externas, validan la entrada de datos mediante los esquemas y llaman a los servicios. No contienen lógica de negocio.
-2. **Servicios (services/)**: Contienen las reglas y flujos de negocio del sistema. Son independientes del framework de la API y de cómo se almacenan físicamente los datos.
-3. **Modelos (models/)**: Representan las entidades de datos mapeadas con la base de datos relacional mediante el ORM (SQLAlchemy).
-4. **Esquemas (schemas/)**: Modelos de Pydantic que sirven para validar los JSON que recibe o devuelve la API, garantizando contratos de datos limpios.
-5. **Configuración (core/config.py)**: Lee y tipa de manera estricta las variables del entorno, previniendo errores por variables faltantes.
+### Flujos Clave de la Plataforma:
+1.  **Seguridad y Autenticación**: Al hacer login se emite un JWT. En las rutas privadas, la dependencia `get_current_user` valida el token y verifica en Redis si este no ha sido revocado en una lista negra por un `/logout` reciente.
+2.  **Transmisión de Eventos en Caliente**: Tras confirmar la persistencia de un reporte en base de datos, FastAPI delega de forma asíncrona la invalidación de la caché y la publicación en Redis Pub/Sub a `BackgroundTasks`. El hilo daemon del servidor lee el evento y ejecuta un broadcast por WebSockets hacia los clientes activos, quienes actualizan su interfaz local y muestran un destello visual (`.row-highlight`) en la fila correspondiente.
+3.  **Aislamiento de Auditoría**: El script `subscriber.py` actúa como consola de auditoría dedicada, capturando los eventos del campus desde Redis de forma externa y sin bloquear al backend web.
 
 ---
 
-## 🚀 Requisitos e Instalación (Windows)
+## 📂 Estructura del Repositorio
+Para una revisión en profundidad de los módulos y responsabilidades de las carpetas, consulte el archivo [docs/GUIA_GENERAL_PROYECTO.md](file:///c:/Users/josem/Desktop/pppp/docs/GUIA_GENERAL_PROYECTO.md).
 
-Sigue estos pasos en la terminal (PowerShell o CMD) dentro del directorio raíz del proyecto:
+---
 
-### 1. Activar el Entorno Virtual
+## 💻 Guía de Despliegue Local
 
-El entorno virtual `.venv` ya ha sido creado en el directorio raíz. Para activarlo en Windows ejecuta:
+Siga los siguientes pasos para instalar y ejecutar **Issue Realtime** en su máquina de desarrollo local:
 
-*   **PowerShell:**
-    ```powershell
-    .venv\Scripts\Activate.ps1
-    ```
-*   **Símbolo del Sistema (CMD):**
-    ```cmd
-    .venv\Scripts\activate.bat
-    ```
+### 1. Clonar el repositorio y configurar el entorno
+Abra una terminal en el directorio del proyecto y cree un entorno virtual de Python:
+```powershell
+# Crear entorno virtual
+python -m venv .venv
 
-*(Si PowerShell muestra un error de políticas de ejecución, puedes usar temporalmente CMD o habilitar la ejecución con `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process` en tu terminal).*
+# Activar el entorno virtual en Windows
+.venv\Scripts\activate
+```
 
-### 2. Instalar Dependencias
-
-Las dependencias principales ya se instalaron durante la inicialización automática. Si necesitas reinstalarlas o ejecutar en otro equipo, corre:
-
-```bash
+### 2. Instalar dependencias del proyecto
+```powershell
 pip install -r requirements.txt
 ```
 
-Las dependencias clave utilizadas son:
-*   `fastapi`: Framework web para construir APIs REST.
-*   `uvicorn`: Servidor ASGI de alto rendimiento para ejecutar FastAPI.
-*   `pydantic-settings`: Manejo avanzado y seguro de configuraciones mediante Pydantic.
-*   `sqlalchemy`: ORM para el mapeo objeto-relacional (preparado para PostgreSQL).
-*   `redis`: Cliente de Python para interactuar con la base de datos y mensajería en memoria Redis.
-
----
-
-## ⚙️ Configuración del Entorno (`.env`)
-
-El archivo `.env` inicial en la raíz contiene las siguientes variables que puedes editar según tu infraestructura local:
-```env
+### 3. Configuración de Variables de Entorno
+Cree un archivo llamado `.env` en la raíz del proyecto basándose en la siguiente plantilla:
+```ini
 PORT=8000
 NODE_ENV=development
-DATABASE_URL=postgresql://postgres:PENDIENTE@localhost:5432/infra_db
-REDIS_URL=redis://default:PENDIENTE@PENDIENTE:6379
+
+# Conexión dual de base de datos relacional (Supabase PostgreSQL)
+# Puerto 6543 (PgBouncer Pooler) para tráfico concurrente del backend
+DATABASE_URL=postgresql://postgres:[PASSWORD]@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require&supa=yp
+# Puerto 5432 (Conexión Directa) para la inicialización DDL (bd.sql)
+DIRECT_URL=postgresql://postgres:[PASSWORD]@db.sglshnnttwgjlsgkhrto.supabase.co:5432/postgres?sslmode=require
+
+# URL de Upstash Redis para Caché y Mensajería Pub/Sub
+REDIS_URL=rediss://default:[TOKEN]@sa-east-1-redis.upstash.io:6379
+
+# Credenciales de Supabase Storage para resguardo fotográfico
+SUPABASE_URL=https://sglshnnttwgjlsgkhrto.supabase.co
+SUPABASE_KEY=[API_SERVICE_KEY]
+SUPABASE_BUCKET=infraestructura-fotos
+
+# Variables para tokens de seguridad JWT
+JWT_SECRET=supersecret_jwt_key_academic_level_2026
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
 
----
+### 4. Simular Infraestructura en la Nube de AWS (LocalStack)
+Para validar la arquitectura de infraestructura declarativa con Docker localmente:
 
-## 🏃 Ejecución del Proyecto
+1.  Asegúrese de tener **Docker** iniciado.
+2.  Levante LocalStack usando docker-compose o la imagen oficial:
+    ```bash
+    docker run --rm -it -p 4566:4566 -p 4510-4559:4510-4559 localstack/localstack
+    ```
+3.  Despliegue la plantilla de CloudFormation en el entorno AWS simulado:
+    ```bash
+    awslocal cloudformation create-stack --stack-name stack-infraestructura --template-body file://cloudformation/template.yaml
+    ```
+4.  Compruebe que los recursos (Bucket de S3 y Tabla DynamoDB con TTL) se crearon correctamente:
+    ```bash
+    awslocal cloudformation describe-stacks --stack-name stack-infraestructura
+    ```
 
-### 1. Levantar la API Backend (Servidor FastAPI)
-
-Ejecuta el servidor web local con recarga automática para desarrollo:
-
-```bash
+### 5. Iniciar la aplicación en modo desarrollo
+Ejecute el servidor de desarrollo web mediante Uvicorn:
+```powershell
 uvicorn app.main:app --reload --port 8000
 ```
-*   La API estará disponible en: [http://localhost:8000](http://localhost:8000)
-*   La documentación interactiva y pruebas de endpoints (Swagger UI) en: [http://localhost:8000/docs](http://localhost:8000/docs)
+La aplicación se iniciará en [http://localhost:8000](http://localhost:8000). 
+- Acceso al Frontend: [http://localhost:8000/](http://localhost:8000/)
+- Acceso a Documentación interactiva de endpoints: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 2. Levantar el Suscriptor de Eventos (Opcional - Redis)
-
-Si tienes un servidor de Redis corriendo localmente o en la nube, puedes levantar el proceso del suscriptor asíncrono para escuchar cambios en tiempo real:
-
-```bash
+### 6. Ejecutar la Consola de Auditoría (Suscriptor de Eventos)
+En otra terminal separada del sistema operativo (manteniendo el entorno virtual activo):
+```powershell
 python subscriber.py
 ```
-*   *Nota: Si Redis no está encendido, la API backend funcionará perfectamente en su almacenamiento temporal de memoria sin lanzar excepciones fatales.*
-
----
-
-## 🌐 Despliegue en Producción (Render)
-
-Esta sección detalla los parámetros de configuración y los conceptos técnicos clave para desplegar la Plataforma de Reportes de Infraestructura Universitaria en la nube utilizando **Render**.
-
-### 🔗 URL Pública del Proyecto
-*   **Enlace de Producción:** (Pendiente de despliegue en Render, ej: `https://p4-infraestructura.onrender.com/docs`)
-
-### 🛠️ Configuración del Servicio en Render
-Al crear un nuevo **Web Service** en Render, utiliza la siguiente configuración en su panel de administración:
-
-*   **Runtime:** `Python 3`
-*   **Build Command (Comando de Construcción):**
-    ```bash
-    pip install -r requirements.txt
-    ```
-*   **Start Command (Comando de Arranque):**
-    ```bash
-    uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    ```
-    *(Nota: Se usa el comando con `--port $PORT` para permitir que Uvicorn asocie la interfaz de red dinámicamente al puerto asignado por Render y evitar caídas por timeout de health check. En entornos locales o fallbacks, el código de main.py prioriza el puerto del entorno o el valor configurado).*
-
-### 🔑 Variables de Entorno Requeridas (Environment Variables)
-Configura las siguientes variables en la sección **Environment** en Render:
-
-1.  `PORT`: Definida automáticamente por Render, indica el puerto asignado para la ejecución.
-2.  `NODE_ENV`: Debe configurarse en `production` para optimizar la velocidad y desactivar el reload automático.
-3.  `DATABASE_URL`: URL de conexión a la base de datos PostgreSQL de producción.
-4.  `REDIS_URL`: URL de conexión segura al servidor Redis (Upstash) de producción.
-
----
-
-### 🔍 Explicación Técnica: ¿Por qué usar Host '0.0.0.0' en lugar de '127.0.0.1'?
-
-En redes y virtualización de contenedores, la dirección a la que se enlaza (bind) el servidor web define el alcance de las peticiones que este puede recibir:
-
-*   **`127.0.0.1` (Localhost / Loopback):**
-    Si configuramos uvicorn para escuchar en `127.0.0.1`, el servidor web solo aceptará peticiones de red originadas **dentro del mismo contenedor/máquina virtual**. Cualquier petición que provenga de internet o de los balanceadores de carga externos de Render será rechazada de inmediato, haciendo que el servicio sea inaccesible.
-*   **`0.0.0.0` (All Interfaces):**
-    Configurar el host en `0.0.0.0` le indica al servidor web que escuche peticiones en **todas las interfaces de red disponibles** en el contenedor. Esto permite que la infraestructura y enrutadores de Render (los cuales mapean el tráfico público de internet hacia el puerto interno del contenedor) puedan reenviar exitosamente el tráfico de los clientes externos a la aplicación FastAPI.
-
+Esta consola mostrará los logs de eventos estructurados en caliente a medida que cree o edite reportes en la aplicación web.
