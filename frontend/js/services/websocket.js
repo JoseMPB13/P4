@@ -69,6 +69,10 @@ class WebSocketService {
             try {
                 const datos = JSON.parse(event.data);
                 console.log("📡 [WebSocket] Evento recibido:", datos);
+                
+                // Despachar evento personalizado global en el documento para actualización atómica de las vistas
+                document.dispatchEvent(new CustomEvent('ws:evento', { detail: datos }));
+                
                 this.procesarEvento(datos);
             } catch (err) {
                 console.error("📡 [WebSocket ERROR] No se pudo parsear el mensaje:", err);

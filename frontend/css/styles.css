@@ -1245,5 +1245,22 @@ textarea.form-control-minimal {
     }
 }
 
+/* =========================================================================
+   💫 ANIMACIÓN DE DESTELLO VISUAL (FEEDBACK DE TIEMPO REAL)
+   ========================================================================= */
+@keyframes highlight-fade {
+    0% {
+        background-color: rgba(245, 158, 11, 0.25); /* Destello en color amarillo acento */
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.row-highlight {
+    animation: highlight-fade 2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
 
 

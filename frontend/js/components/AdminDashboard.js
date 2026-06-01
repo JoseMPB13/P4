@@ -24,6 +24,8 @@ export class AdminDashboard {
         this.contenedor = document.querySelector(selectorContenedor);
         this.inicializado = false;
         this.currentTab = "incidencias"; // Pestaña por defecto: auditoría de reportes
+        this.reportes = []; // Estado local de reportes en memoria
+        this.reporteModalAbiertoId = null; // Guardar el ID del reporte que está abierto en el modal
     }
 
     /**
@@ -259,9 +261,6 @@ export class AdminDashboard {
      * Obtiene reportes del backend y los renderiza en la tabla de auditoría con soporte de métricas.
      */
     async cargarDatosReportes() {
-        const metricsGrid = document.getElementById("admin-metrics-grid");
-        const auditTableBody = document.querySelector("#admin-audit-table tbody");
-
         try {
             const tiempoInicio = performance.now();
             const respuesta = await apiFetch("/reportes/");
@@ -276,84 +275,12 @@ export class AdminDashboard {
                 throw new Error("Fallo al establecer enlace de auditoría.");
             }
 
-            const reportes = await respuesta.json();
-
-            // Calcular Métricas Globales
-            const total = reportes.length;
-            const resueltos = reportes.filter(r => r.estado === "resuelto").length;
-            const pendientes = reportes.filter(r => r.estado === "pendiente").length;
-            const enProceso = reportes.filter(r => r.estado === "en proceso").length;
-
-            if (metricsGrid) {
-                metricsGrid.innerHTML = `
-                    <div class="stat-box-minimal">
-                        <div class="stat-number" style="color: var(--text-primary);">${total}</div>
-                        <div class="stat-label">Total Problemas o Fallas</div>
-                    </div>
-                    <div class="stat-box-minimal">
-                        <div class="stat-number warning">${pendientes}</div>
-                        <div class="stat-label">Pendientes</div>
-                    </div>
-                    <div class="stat-box-minimal">
-                        <div class="stat-number info" style="color: var(--accent-blue);">${enProceso}</div>
-                        <div class="stat-label">En Proceso</div>
-                    </div>
-                    <div class="stat-box-minimal">
-                        <div class="stat-number success">${resueltos}</div>
-                        <div class="stat-label">Resueltas</div>
-                    </div>
-                `;
-            }
-
-            if (auditTableBody) {
-                if (total === 0) {
-                    auditTableBody.innerHTML = `
-                        <tr>
-                            <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                                No hay problemas o fallas registradas en la base de datos.
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }
-
-                auditTableBody.innerHTML = reportes.map(rep => {
-                    const reporter = rep.usuario ? rep.usuario.nombre : "Anónimo";
-                    
-                    return `
-                        <tr>
-                            <td style="font-weight: 600; color: var(--text-secondary);">#${rep.id}</td>
-                            <td>
-                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.15rem; display: flex; align-items: center; justify-content: space-between;">
-                                    <span>${rep.titulo}</span>
-                                    <button class="btn-minimal btn-text btn-admin-detalles" data-id="${rep.id}" style="color: var(--accent); font-size: 0.75rem; padding: 0.15rem 0.4rem; display: inline-flex; align-items: center; gap: 0.25rem;">
-                                        <i class="bi bi-card-text"></i> Detalles
-                                    </button>
-                                </div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                    ${rep.descripcion}
-                                </div>
-                            </td>
-                            <td><span style="font-size: 0.8125rem;">${rep.ubicacion}</span></td>
-                            <td><div style="font-weight: 500; font-size: 0.8125rem;">${reporter}</div></td>
-                            <td>
-                                <select class="select-minimal select-admin-estado" data-id="${rep.id}">
-                                    <option value="pendiente" ${rep.estado === "pendiente" ? "selected" : ""}>⚠️ Pendiente</option>
-                                    <option value="en proceso" ${rep.estado === "en proceso" ? "selected" : ""}>⚙️ En Proceso</option>
-                                    <option value="resuelto" ${rep.estado === "resuelto" ? "selected" : ""}>✅ Resuelto</option>
-                                </select>
-                            </td>
-                            <td>
-                                <button class="btn-minimal btn-text btn-admin-eliminar" data-id="${rep.id}" style="color: #ef4444; padding: 0.25rem;">
-                                    <i class="bi bi-trash-fill"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                }).join("");
-            }
+            this.reportes = await respuesta.json();
+            this.renderReportesData();
 
         } catch (error) {
+            console.error("Error al cargar datos de reportes:", error);
+            const auditTableBody = document.querySelector("#admin-audit-table tbody");
             if (auditTableBody) {
                 auditTableBody.innerHTML = `
                     <tr>
@@ -363,6 +290,88 @@ export class AdminDashboard {
                     </tr>
                 `;
             }
+        }
+    }
+
+    /**
+     * Dibuja los reportes y recalcula las métricas en caliente.
+     */
+    renderReportesData() {
+        const metricsGrid = document.getElementById("admin-metrics-grid");
+        const auditTableBody = document.querySelector("#admin-audit-table tbody");
+
+        const total = this.reportes.length;
+        const resueltos = this.reportes.filter(r => r.estado === "resuelto").length;
+        const pendientes = this.reportes.filter(r => r.estado === "pendiente").length;
+        const enProceso = this.reportes.filter(r => r.estado === "en proceso").length;
+
+        if (metricsGrid) {
+            metricsGrid.innerHTML = `
+                <div class="stat-box-minimal">
+                    <div class="stat-number" style="color: var(--text-primary);">${total}</div>
+                    <div class="stat-label">Total Problemas o Fallas</div>
+                </div>
+                <div class="stat-box-minimal">
+                    <div class="stat-number warning">${pendientes}</div>
+                    <div class="stat-label">Pendientes</div>
+                </div>
+                <div class="stat-box-minimal">
+                    <div class="stat-number info" style="color: var(--accent-blue);">${enProceso}</div>
+                    <div class="stat-label">En Proceso</div>
+                </div>
+                <div class="stat-box-minimal">
+                    <div class="stat-number success">${resueltos}</div>
+                    <div class="stat-label">Resueltas</div>
+                </div>
+            `;
+        }
+
+        if (auditTableBody) {
+            if (total === 0) {
+                auditTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            No hay problemas o fallas registradas en la base de datos.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            auditTableBody.innerHTML = this.reportes.map(rep => {
+                const reporter = rep.usuario ? rep.usuario.nombre : "Anónimo";
+                
+                return `
+                    <tr data-row-id="${rep.id}">
+                        <td style="font-weight: 600; color: var(--text-secondary);">#${rep.id}</td>
+                        <td>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.15rem; display: flex; align-items: center; justify-content: space-between;">
+                                <span>${rep.titulo}</span>
+                                <button class="btn-minimal btn-text btn-admin-detalles" data-id="${rep.id}" style="color: var(--accent); font-size: 0.75rem; padding: 0.15rem 0.4rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                    <i class="bi bi-card-text"></i> Detalles
+                                </button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                ${rep.descripcion}
+                            </div>
+                        </td>
+                        <td><span style="font-size: 0.8125rem;">${rep.ubicacion}</span></td>
+                        <td><div style="font-weight: 500; font-size: 0.8125rem;">${reporter}</div></td>
+                        <td>
+                            <select class="select-minimal select-admin-estado" data-id="${rep.id}">
+                                <option value="pendiente" ${rep.estado === "pendiente" ? "selected" : ""}>⚠️ Pendiente</option>
+                                <option value="en proceso" ${rep.estado === "en proceso" ? "selected" : ""}>⚙️ En Proceso</option>
+                                <option value="resuelto" ${rep.estado === "resuelto" ? "selected" : ""}>✅ Resuelto</option>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="btn-minimal btn-text btn-admin-eliminar" data-id="${rep.id}" style="color: #ef4444; padding: 0.25rem;">
+                                <i class="bi bi-trash-fill"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
         }
     }
 
@@ -500,6 +509,7 @@ export class AdminDashboard {
      * Recupera expediente detallado e inyecta la UI del Modal Glassmorphic de Auditoría Multimedia.
      */
     async abrirModalIncidencia(id) {
+        this.reporteModalAbiertoId = id;
         const modal = document.getElementById("incidencia-modal");
         const detailsBody = document.getElementById("modal-details-body");
         if (!modal || !detailsBody) return;
@@ -702,6 +712,7 @@ export class AdminDashboard {
             const btnCloseModal = e.target.closest("#btn-close-modal");
             if (btnCloseModal) {
                 document.getElementById("incidencia-modal").classList.remove("active");
+                this.reporteModalAbiertoId = null;
                 // Recargar listado al cerrar por si se cambiaron estados o técnicos
                 await this.cargarDatosReportes();
                 return;
@@ -722,7 +733,11 @@ export class AdminDashboard {
             if (btnCache) {
                 btnCache.innerHTML = `<span class="loader-spinner" style="margin-right: 0.25rem;"></span> Limpiando...`;
                 setTimeout(() => {
-                    alert("✅ Cachés de Redis depuradas e invalidadas con éxito.");
+                    notifier.show({
+                        tipo: "success",
+                        titulo: "Caché Depurada",
+                        mensaje: "Cachés de Redis depuradas e invalidadas con éxito."
+                    });
                     btnCache.innerHTML = `<i class="bi bi-trash2 me-1"></i> Limpiar Caché de Redis`;
                 }, 800);
                 return;
@@ -731,7 +746,11 @@ export class AdminDashboard {
             // Botón Descargar Logs
             const btnLogs = e.target.closest("#btn-mock-logs");
             if (btnLogs) {
-                alert("📥 Descargando archivo de trazabilidad global (system_audit.log)...");
+                notifier.show({
+                    tipo: "info",
+                    titulo: "Descargando Logs",
+                    mensaje: "Descargando archivo de trazabilidad global (system_audit.log)..."
+                });
                 return;
             }
 
@@ -813,7 +832,11 @@ export class AdminDashboard {
                 const texto = textarea.value.trim();
 
                 if (!texto) {
-                    alert("⚠️ El comentario no puede estar vacío.");
+                    notifier.show({
+                        tipo: "warning",
+                        titulo: "Campo Vacío",
+                        mensaje: "El comentario no puede estar vacío."
+                    });
                     return;
                 }
 
@@ -845,7 +868,11 @@ export class AdminDashboard {
                     await this.abrirModalIncidencia(id);
 
                 } catch (error) {
-                    alert(`❌ Error: ${error.message}`);
+                    notifier.show({
+                        tipo: "error",
+                        titulo: "Error al enviar nota",
+                        mensaje: error.message
+                    });
                 }
                 return;
             }
@@ -888,6 +915,59 @@ export class AdminDashboard {
                 await this.guardarUsuario();
             }
         });
+
+        // Escuchar eventos en tiempo real de WebSocket de forma desacoplada y atómica
+        document.addEventListener("ws:evento", async (e) => {
+            const { tipo, payload } = e.detail;
+            if (!tipo || !payload) return;
+            
+            if (!this.reportes) return;
+
+            if (tipo === "reporte:creado") {
+                // Comprobar que no exista duplicidad
+                if (!this.reportes.some(r => r.id === payload.id)) {
+                    this.reportes.unshift(payload);
+                    this.renderReportesData();
+                    this.destellarFila(payload.id);
+                }
+            } else if (tipo === "reporte:actualizado") {
+                const index = this.reportes.findIndex(r => r.id === payload.id);
+                if (index !== -1) {
+                    this.reportes[index] = payload;
+                    this.renderReportesData();
+                    this.destellarFila(payload.id);
+                }
+                
+                // Si el modal de detalles de esta incidencia está abierto, lo refrescamos reactivamente
+                if (this.reporteModalAbiertoId === payload.id) {
+                    await this.abrirModalIncidencia(payload.id);
+                }
+            } else if (tipo === "reporte:eliminado") {
+                const idEliminar = payload.id;
+                this.reportes = this.reportes.filter(r => r.id !== idEliminar);
+                this.renderReportesData();
+                
+                // Si el modal del reporte eliminado está abierto, lo cerramos
+                if (this.reporteModalAbiertoId === idEliminar) {
+                    const modal = document.getElementById("incidencia-modal");
+                    if (modal) modal.classList.remove("active");
+                    this.reporteModalAbiertoId = null;
+                }
+            }
+        });
+    }
+
+    /**
+     * Aplica un destello de color transitorio a la fila para retroalimentación en tiempo real.
+     */
+    destellarFila(id) {
+        const fila = this.contenedor.querySelector(`tr[data-row-id="${id}"]`);
+        if (fila) {
+            fila.classList.add("row-highlight");
+            setTimeout(() => {
+                fila.classList.remove("row-highlight");
+            }, 2000);
+        }
     }
 
     /**
@@ -925,7 +1005,11 @@ export class AdminDashboard {
             }
 
         } catch (error) {
-            alert(`❌ Error al actualizar ${campoLabel}: ${error.message}`);
+            notifier.show({
+                tipo: "error",
+                titulo: "Error de Actualización",
+                mensaje: `Error al actualizar ${campoLabel}: ${error.message}`
+            });
         }
     }
 

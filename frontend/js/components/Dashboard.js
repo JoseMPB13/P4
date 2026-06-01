@@ -5,14 +5,15 @@
  * CICLO DE RENDERING (React-style):
  * 1. Constructor: Guarda la referencia al elemento contenedor en el DOM.
  * 2. Render: Limpia el contenedor principal e inyecta un estado de carga/spinner minimalista.
- * 3. Fetch Data (Efecto Secundario): Solicita asíncronamente las incidencias a la API.
- * 4. Render Table: Pinta las filas de la tabla minimalista (.table-minimal) e inyecta selects (.select-minimal)
- *    de estado si el rol de usuario es técnico o administrador, o badges (.badge-minimal) estáticos en caso de estudiante.
- * 5. Event Binding: Aplica delegación de eventos al contenedor para capturar cambios en selects o clics en el botón de actualización.
+ * 3. Fetch Data (Efecto Secundario): Solicita asíncronamente los reportes a la API.
+ * 4. Render Table: Pinta las filas de la tabla minimalista (.table-minimal) e inyecta selects
+ *    de estado o badges.
+ * 5. Event Binding: Aplica delegación de eventos al contenedor y escucha eventos ws:evento.
  */
 
 import { apiFetch } from "../services/api.js";
 import { authService } from "../services/authService.js";
+import { notifier } from "../utils/notifier.js";
 
 export class Dashboard {
     /**
@@ -24,10 +25,11 @@ export class Dashboard {
         this.contenedor = document.querySelector(selectorContenedor);
         this.alCambiarEstado = alCambiarEstado;
         this.inicializado = false;
+        this.reportes = []; // Estado local de datos en memoria
     }
 
     /**
-     * Obtiene el listado de incidencias del backend y desencadena el renderizado de la tabla.
+     * Obtiene el listado de reportes del backend y desencadena el renderizado de la tabla.
      */
     async render() {
         if (!this.contenedor) return;
@@ -47,10 +49,13 @@ export class Dashboard {
             }
             const reportes = await respuesta.json();
 
-            // Renderizar tabla de reportes
-            this.renderTabla(reportes);
+            // Guardar en memoria para actualizaciones atómicas en tiempo real
+            this.reportes = reportes;
 
-            // Registrar listeners de delegación de eventos de forma única
+            // Renderizar tabla de reportes
+            this.renderTabla(this.reportes);
+
+            // Registrar listeners de delegación y eventos de forma única
             if (!this.inicializado) {
                 this.inicializarEventos();
                 this.inicializado = true;
@@ -76,7 +81,7 @@ export class Dashboard {
     }
 
     /**
-     * Dibuja la estructura HTML de la tabla con los datos del servidor.
+     * Dibuja la estructura HTML de la tabla con los datos actuales.
      * @param {Array} reportes - Lista de reportes.
      */
     renderTabla(reportes) {
@@ -88,7 +93,7 @@ export class Dashboard {
                 <div class="flat-card" style="text-align: center; padding: 4rem 2rem;">
                     <i class="bi bi-clipboard-check" style="color: var(--accent-green); font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
                     <h4 style="font-weight: 700; margin-bottom: 0.5rem;">Sin Novedades</h4>
-                    <p class="text-muted-custom">No existen problemas reportados activos en la universidad.</p>
+                    <p class="text-muted-custom">No existen problemas o fallas reportadas activas en la universidad.</p>
                 </div>
             `;
             return;
@@ -132,7 +137,7 @@ export class Dashboard {
             ` : "";
 
             return `
-                <tr>
+                <tr data-row-id="${reporte.id}">
                     <td style="font-weight: 600; color: var(--text-secondary);">#${reporte.id}</td>
                     <td>
                         <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem; display: flex; align-items: center;">
@@ -194,7 +199,7 @@ export class Dashboard {
     }
 
     /**
-     * Vincula el listener de cambio de estado empleando delegación de eventos.
+     * Vincula los escuchadores de eventos interactivos y de tiempo real.
      */
     inicializarEventos() {
         // Capturar cambios en los dropdowns de estado (.select-estado)
@@ -206,7 +211,7 @@ export class Dashboard {
             }
         });
 
-        // Capturar clics en botón de refresco
+        // Capturar clics en botón de refresco manual
         this.contenedor.addEventListener("click", async (e) => {
             const btnRefrescar = e.target.closest("#btn-refrescar-dashboard");
             if (btnRefrescar) {
@@ -215,6 +220,47 @@ export class Dashboard {
                 await this.render();
             }
         });
+
+        // Escuchar eventos en tiempo real de WebSocket de forma desacoplada y atómica
+        document.addEventListener("ws:evento", (e) => {
+            const { tipo, payload } = e.detail;
+            if (!tipo || !payload) return;
+            
+            if (!this.reportes || this.reportes.length === 0) return;
+
+            if (tipo === "reporte:creado") {
+                // Comprobar que no exista duplicidad
+                if (!this.reportes.some(r => r.id === payload.id)) {
+                    this.reportes.unshift(payload);
+                    this.renderTabla(this.reportes);
+                    this.destellarFila(payload.id);
+                }
+            } else if (tipo === "reporte:actualizado") {
+                const index = this.reportes.findIndex(r => r.id === payload.id);
+                if (index !== -1) {
+                    this.reportes[index] = payload;
+                    this.renderTabla(this.reportes);
+                    this.destellarFila(payload.id);
+                }
+            } else if (tipo === "reporte:eliminado") {
+                const idEliminar = payload.id;
+                this.reportes = this.reportes.filter(r => r.id !== idEliminar);
+                this.renderTabla(this.reportes);
+            }
+        });
+    }
+
+    /**
+     * Aplica un destello de color transitorio a la fila para retroalimentación en tiempo real.
+     */
+    destellarFila(id) {
+        const fila = this.contenedor.querySelector(`tr[data-row-id="${id}"]`);
+        if (fila) {
+            fila.classList.add("row-highlight");
+            setTimeout(() => {
+                fila.classList.remove("row-highlight");
+            }, 2000);
+        }
     }
 
     /**
@@ -248,7 +294,11 @@ export class Dashboard {
             }
 
         } catch (error) {
-            alert(`❌ Error al actualizar el estado: ${error.message}`);
+            notifier.show({
+                tipo: "error",
+                titulo: "Error al actualizar",
+                mensaje: error.message
+            });
             selectEl.value = valorPrevio;
         }
     }

@@ -4,22 +4,16 @@
  * 
  * Responsabilidad:
  * 1. Renderizar la bandeja de entrada para el personal técnico.
- * 2. Cargar una lista compacta con todas las incidencias asignadas al técnico autenticado
- *    llamando al endpoint seguro del backend GET /api/reportes/mantenimiento.
+ * 2. Cargar una lista compacta con todas las incidencias asignadas al técnico autenticado.
  * 3. Proveer un modal de inspección multimedia y bitácora técnica de comentarios en tiempo real.
- * 
- * CICLO DE RENDERING (React-style):
- * 1. Constructor: Asigna el contenedor principal y vincula listeners de eventos.
- * 2. Render: Inicializa la estructura del contenedor.
- * 3. Cargar Bandeja de Incidencias: Solicita los reportes asignados, renderiza usando Glassmorphism
- *    y añade bordes HSL dinámicos según prioridad.
- * 4. Inspección & Modal: Abre una vista detallada con evidencia fotográfica (o placeholder si no hay foto),
- *    historial de cambios y un sistema reactivo de comentarios técnicos (bitácora).
+ * 4. Suscribirse a eventos ws:evento de WebSocket para mantener la bandeja actualizada
+ *    atómicamente en tiempo real sin recargar la página completa.
  */
 
 import { apiFetch } from "../services/api.js";
 import { StatsCard } from "./StatsCard.js";
 import { notifier } from "../utils/notifier.js";
+import { authService } from "../services/authService.js";
 
 export class PersonalDashboard {
     /**
@@ -29,6 +23,8 @@ export class PersonalDashboard {
     constructor(selectorContenedor) {
         this.contenedor = document.querySelector(selectorContenedor);
         this.inicializado = false;
+        this.reportes = []; // Estado local en memoria de reportes asignados
+        this.reporteModalAbiertoId = null; // ID del reporte abierto en el modal
     }
 
     /**
@@ -76,7 +72,7 @@ export class PersonalDashboard {
         this.stats.render();
         await this.stats.actualizarContadores();
 
-        // Cargar bandeja de tareas asignadas pendientes
+        // Cargar bandeja de tareas asignadas
         await this.cargarBandeja();
 
         // Vincular e inicializar listeners de eventos
@@ -87,92 +83,96 @@ export class PersonalDashboard {
     }
 
     /**
-     * Obtiene los reportes y renderiza solo los que no están resueltos.
+     * Obtiene los reportes y los almacena en el estado local.
      */
     async cargarBandeja() {
-        const inboxContainer = document.getElementById("personal-inbox-container");
-        if (!inboxContainer) return;
-
         try {
-            // Comentario en español: Consultamos el endpoint seguro /reportes/mantenimiento
-            // el cual filtra automáticamente por el ID del usuario en el token JWT.
             const respuesta = await apiFetch("/reportes/mantenimiento");
             if (!respuesta.ok) {
                 throw new Error("Error al obtener la lista de fallas o problemas asignados.");
             }
-            const reportes = await respuesta.json();
-
-            // Filtrar incidencias no resueltas (pendiente / en proceso)
-            const activas = reportes.filter(r => r.estado !== "resuelto");
-
-            if (activas.length === 0) {
-                inboxContainer.innerHTML = `
-                    <div class="glass-task-card" style="text-align: center; padding: 4rem 2rem; border-left: 5px solid hsl(142, 50%, 45%);">
-                        <i class="bi bi-emoji-smile" style="color: var(--accent-green); font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
-                        <h4 style="font-weight: 700; margin-bottom: 0.5rem;">¡Bandeja vacía!</h4>
-                        <p class="text-muted-custom">No tienes problemas o fallas pendientes asignados en este momento.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // Inyectar ítems compactos tipo inbox con bordes dinámicos HSL y estilos premium
-            inboxContainer.innerHTML = activas.map(item => {
-                const fechaStr = new Date(item.creado_en).toLocaleString("es-BO", {
-                    dateStyle: "short",
-                    timeStyle: "short"
-                });
-                const reportante = item.usuario ? item.usuario.nombre : "Anónimo";
-
-                // Comentario en español: Determinamos las clases de diseño para el borde HSL
-                // de acuerdo con la prioridad del reporte (alta, media o baja).
-                const prioridadLower = item.prioridad.toLowerCase();
-                const claseBordePrioridad = `priority-hsl-${prioridadLower}`;
-
-                // Comentario en español: Clase dinámica HSL para los badges del estado
-                const badgeStateClass = item.estado === "en proceso" ? "badge-status-proceso" : "badge-status-pendiente";
-
-                return `
-                    <div class="glass-task-card ${claseBordePrioridad}">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-                            <div>
-                                <span class="badge-minimal ${badgeStateClass}" style="margin-bottom: 0.5rem; display: inline-block;">
-                                    ${item.estado.toUpperCase()}
-                                </span>
-                                <h4 style="font-weight: 700; margin: 0; font-size: 1.1rem; color: var(--text-primary);">${item.titulo}</h4>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-                                <button class="btn-minimal btn-accent btn-inbox-inspect" data-id="${item.id}" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-                                    🔍 Inspeccionar
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                            ${item.descripcion}
-                        </p>
-                        
-                        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); gap: 0.5rem; margin-top: 0.5rem;">
-                            <span><i class="bi bi-geo-alt-fill" style="margin-right: 0.25rem;"></i> ${item.ubicacion}</span>
-                            <span>
-                                <i class="bi bi-person-fill" style="margin-right: 0.25rem;"></i> ${reportante} 
-                                <span style="opacity: 0.5; margin: 0 0.25rem;">|</span> 
-                                <i class="bi bi-clock-fill" style="margin-right: 0.25rem;"></i> ${fechaStr}
-                            </span>
-                        </div>
-                    </div>
-                `;
-            }).join("");
+            this.reportes = await respuesta.json();
+            this.renderBandejaData();
 
         } catch (error) {
+            const inboxContainer = document.getElementById("personal-inbox-container");
+            if (inboxContainer) {
+                inboxContainer.innerHTML = `
+                    <div class="glass-task-card" style="text-align: center; padding: 2rem 1rem; border-left: 5px solid #ef4444;">
+                        <i class="bi bi-x-circle" style="color: #ef4444; font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                        <h5 style="font-weight: 700; margin-bottom: 0.25rem;">Error de conexión</h5>
+                        <span class="text-muted-custom">${error.message}</span>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    /**
+     * Dibuja los elementos HTML de la bandeja de entrada según el estado local.
+     */
+    renderBandejaData() {
+        const inboxContainer = document.getElementById("personal-inbox-container");
+        if (!inboxContainer) return;
+
+        // Filtrar incidencias no resueltas (pendiente / en proceso)
+        const activas = this.reportes.filter(r => r.estado !== "resuelto");
+
+        if (activas.length === 0) {
             inboxContainer.innerHTML = `
-                <div class="glass-task-card" style="text-align: center; padding: 2rem 1rem; border-left: 5px solid #ef4444;">
-                    <i class="bi bi-x-circle" style="color: #ef4444; font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
-                    <h5 style="font-weight: 700; margin-bottom: 0.25rem;">Error de conexión</h5>
-                    <span class="text-muted-custom">${error.message}</span>
+                <div class="glass-task-card" style="text-align: center; padding: 4rem 2rem; border-left: 5px solid hsl(142, 50%, 45%);">
+                    <i class="bi bi-emoji-smile" style="color: var(--accent-green); font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
+                    <h4 style="font-weight: 700; margin-bottom: 0.5rem;">¡Bandeja vacía!</h4>
+                    <p class="text-muted-custom">No tienes problemas o fallas pendientes asignados en este momento.</p>
                 </div>
             `;
+            return;
         }
+
+        // Inyectar ítems compactos tipo inbox con bordes dinámicos HSL y estilos premium
+        inboxContainer.innerHTML = activas.map(item => {
+            const fechaStr = new Date(item.creado_en).toLocaleString("es-BO", {
+                dateStyle: "short",
+                timeStyle: "short"
+            });
+            const reportante = item.usuario ? item.usuario.nombre : "Anónimo";
+
+            const prioridadLower = item.prioridad.toLowerCase();
+            const claseBordePrioridad = `priority-hsl-${prioridadLower}`;
+
+            const badgeStateClass = item.estado === "en proceso" ? "badge-status-proceso" : "badge-status-pendiente";
+
+            return `
+                <div class="glass-task-card ${claseBordePrioridad}" data-card-id="${item.id}">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                        <div>
+                            <span class="badge-minimal ${badgeStateClass}" style="margin-bottom: 0.5rem; display: inline-block;">
+                                ${item.estado.toUpperCase()}
+                            </span>
+                            <h4 style="font-weight: 700; margin: 0; font-size: 1.1rem; color: var(--text-primary);">${item.titulo}</h4>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                            <button class="btn-minimal btn-accent btn-inbox-inspect" data-id="${item.id}" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                                🔍 Inspeccionar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        ${item.descripcion}
+                    </p>
+                    
+                    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); gap: 0.5rem; margin-top: 0.5rem;">
+                        <span><i class="bi bi-geo-alt-fill" style="margin-right: 0.25rem;"></i> ${item.ubicacion}</span>
+                        <span>
+                            <i class="bi bi-person-fill" style="margin-right: 0.25rem;"></i> ${reportante} 
+                            <span style="opacity: 0.5; margin: 0 0.25rem;">|</span> 
+                            <i class="bi bi-clock-fill" style="margin-right: 0.25rem;"></i> ${fechaStr}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }).join("");
     }
 
     /**
@@ -180,8 +180,6 @@ export class PersonalDashboard {
      */
     inicializarEventos() {
         this.contenedor.addEventListener("click", async (e) => {
-            // Comentario en español: Capturamos el evento de clic en el botón de inspección
-            // para levantar el modal flotante con los detalles.
             const btnInspect = e.target.closest(".btn-inbox-inspect");
             if (btnInspect) {
                 const id = btnInspect.dataset.id;
@@ -200,6 +198,91 @@ export class PersonalDashboard {
                 }, 800);
             }
         });
+
+        // Escuchar eventos en tiempo real de WebSocket de forma desacoplada y atómica
+        document.addEventListener("ws:evento", async (e) => {
+            const { tipo, payload } = e.detail;
+            if (!tipo || !payload) return;
+            
+            const usuarioActual = authService.getUsuarioActual();
+            if (!usuarioActual) return;
+
+            if (tipo === "reporte:creado" || tipo === "reporte:actualizado") {
+                const asignadoAMi = payload.asignado_a === usuarioActual.id;
+
+                if (asignadoAMi) {
+                    const index = this.reportes.findIndex(r => r.id === payload.id);
+                    if (index !== -1) {
+                        this.reportes[index] = payload;
+                    } else {
+                        this.reportes.unshift(payload);
+                    }
+                    this.renderBandejaData();
+                    this.destellarTarjeta(payload.id);
+
+                    // Si el modal de detalles de este reporte está abierto, lo actualizamos también de forma reactiva
+                    if (this.reporteModalAbiertoId === payload.id) {
+                        // Si se resolvió en el servidor, cerramos el modal
+                        if (payload.estado === "resuelto") {
+                            const modal = document.getElementById("inspection-modal");
+                            if (modal) modal.remove();
+                            this.reporteModalAbiertoId = null;
+                        } else {
+                            // De lo contrario refrescamos el modal para ver los cambios
+                            await this.abrirModalPorId(payload.id);
+                        }
+                    }
+                    
+                    if (this.stats) await this.stats.actualizarContadores();
+
+                } else {
+                    // Si no está asignado a mí pero antes estaba en mi bandeja, lo removemos
+                    const existia = this.reportes.some(r => r.id === payload.id);
+                    if (existia) {
+                        this.reportes = this.reportes.filter(r => r.id !== payload.id);
+                        this.renderBandejaData();
+                        
+                        // Si el modal estaba abierto, lo cerramos
+                        if (this.reporteModalAbiertoId === payload.id) {
+                            const modal = document.getElementById("inspection-modal");
+                            if (modal) modal.remove();
+                            this.reporteModalAbiertoId = null;
+                        }
+
+                        if (this.stats) await this.stats.actualizarContadores();
+                    }
+                }
+            } else if (tipo === "reporte:eliminado") {
+                const idEliminar = payload.id;
+                const existia = this.reportes.some(r => r.id === idEliminar);
+                if (existia) {
+                    this.reportes = this.reportes.filter(r => r.id !== idEliminar);
+                    this.renderBandejaData();
+
+                    // Si el modal de este reporte estaba abierto, lo cerramos
+                    if (this.reporteModalAbiertoId === idEliminar) {
+                        const modal = document.getElementById("inspection-modal");
+                        if (modal) modal.remove();
+                        this.reporteModalAbiertoId = null;
+                    }
+
+                    if (this.stats) await this.stats.actualizarContadores();
+                }
+            }
+        });
+    }
+
+    /**
+     * Aplica un destello de color transitorio a la tarjeta de tarea para dar feedback en tiempo real.
+     */
+    destellarTarjeta(id) {
+        const tarjeta = this.contenedor.querySelector(`[data-card-id="${id}"]`);
+        if (tarjeta) {
+            tarjeta.classList.add("row-highlight");
+            setTimeout(() => {
+                tarjeta.classList.remove("row-highlight");
+            }, 2000);
+        }
     }
 
     /**
@@ -213,6 +296,7 @@ export class PersonalDashboard {
                 throw new Error("No se pudo obtener la información fresca del reporte.");
             }
             const reporte = await respuesta.json();
+            this.reporteModalAbiertoId = id;
             this.abrirModal(reporte);
         } catch (error) {
             notifier.show({
@@ -234,10 +318,8 @@ export class PersonalDashboard {
 
         const modalDiv = document.createElement("div");
         modalDiv.id = "inspection-modal";
-        modalDiv.className = "modal-overlay active"; // modal-overlay ya existe en styles.css
+        modalDiv.className = "modal-overlay active";
 
-        // Comentario en español: Construimos de forma condicional la sección de evidencia.
-        // Si no hay imagen_url, renderizamos el placeholder estético con bordes de guión e icono gris.
         const imagenHTML = reporte.imagen_url 
             ? `<img src="${reporte.imagen_url}" alt="Evidencia de la falla o problema" class="evidence-img-large" />` 
             : `<div class="evidence-image-placeholder">
@@ -245,7 +327,6 @@ export class PersonalDashboard {
                  <span>Sin evidencia fotográfica adjunta</span>
                </div>`;
 
-        // Comentario en español: Mapeamos los comentarios de la bitácora inmutable.
         const comentariosHTML = reporte.comentarios && reporte.comentarios.length > 0
             ? reporte.comentarios.map(c => {
                 const cFecha = new Date(c.creado_en).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" });
@@ -334,10 +415,16 @@ export class PersonalDashboard {
 
         // Vincular los eventos interactivos del modal
         const closeBtn = modalDiv.querySelector("#modal-close");
-        closeBtn.addEventListener("click", () => modalDiv.remove());
+        closeBtn.addEventListener("click", () => {
+            modalDiv.remove();
+            this.reporteModalAbiertoId = null;
+        });
 
         modalDiv.addEventListener("click", (e) => {
-            if (e.target === modalDiv) modalDiv.remove();
+            if (e.target === modalDiv) {
+                modalDiv.remove();
+                this.reporteModalAbiertoId = null;
+            }
         });
 
         // Evento Iniciar Trabajo
@@ -346,6 +433,7 @@ export class PersonalDashboard {
             btnProceso.addEventListener("click", async () => {
                 await this.cambiarEstadoYNotificar(reporte.id, "en proceso");
                 modalDiv.remove();
+                this.reporteModalAbiertoId = null;
             });
         }
 
@@ -355,6 +443,7 @@ export class PersonalDashboard {
             btnResolver.addEventListener("click", async () => {
                 await this.cambiarEstadoYNotificar(reporte.id, "resuelto");
                 modalDiv.remove();
+                this.reporteModalAbiertoId = null;
             });
         }
 
@@ -396,7 +485,6 @@ export class PersonalDashboard {
                 throw new Error("No fue posible actualizar el estado de la falla o problema.");
             }
 
-            // Comentario en español: Notificación visual tipo Toast que salta al técnico tras cambiar estado
             notifier.show({
                 tipo: "success",
                 titulo: "Estado Actualizado",
@@ -440,7 +528,6 @@ export class PersonalDashboard {
 
             const nuevoComentario = await respuesta.json();
 
-            // Comentario en español: Confirmación Toast del comentario registrado exitosamente
             notifier.show({
                 tipo: "success",
                 titulo: "Nota guardada",
@@ -451,7 +538,7 @@ export class PersonalDashboard {
             const txtArea = modalDiv.querySelector("#modal-comment-text");
             if (txtArea) txtArea.value = "";
 
-            // Añadir de forma reactiva e inmediata el comentario en la interfaz
+            // Añadir de forma reactiva el comentario en la bitácora del modal
             const commentsContainer = modalDiv.querySelector("#modal-comments-list");
             const noCommentsMsg = modalDiv.querySelector("#no-comments-msg");
             if (noCommentsMsg) noCommentsMsg.remove();
@@ -475,7 +562,7 @@ export class PersonalDashboard {
                 commentsContainer.scrollTop = commentsContainer.scrollHeight;
             }
 
-            // Recargar bandeja oculta de fondo
+            // Recargar bandeja de fondo
             await this.cargarBandeja();
 
         } catch (error) {

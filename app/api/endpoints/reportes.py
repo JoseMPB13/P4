@@ -8,30 +8,33 @@ Este archivo define las rutas HTTP correspondientes a la API de reportes.
 Inyecta la sesión de la base de datos relacional (SQLAlchemy Session) en cada una
 de las rutas y delega la ejecución de la lógica operacional a ReporteService.
 - Las rutas GET son de acceso público.
-- Las rutas POST, PUT y DELETE están protegidas y exigen un token de acceso JWT válido
-  a través de la dependencia de seguridad 'get_current_user'.
+- Las rutas POST, PUT y DELETE están protegidas y exigen un token de acceso JWT válido.
+- Utiliza FastAPI BackgroundTasks para liberar inmediatamente la respuesta HTTP.
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, status, Depends, HTTPException, Form, File, UploadFile
-from fastapi.security import OAuth2PasswordBearer
-import jwt
-from jwt.exceptions import InvalidTokenError
-from sqlalchemy.orm import Session, joinedload
-from app.models.reporte import ReporteModel
+from datetime import datetime, timezone
 import json
 import uuid
 import os
+import logging
+import jwt
+from jwt.exceptions import InvalidTokenError
+from fastapi import APIRouter, status, Depends, HTTPException, Form, File, UploadFile, BackgroundTasks
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import SQLAlchemyError
 
+from app.models.reporte import ReporteModel
+from app.models.usuario import UsuarioModel
+from app.models.comentario import ComentarioModel
 from app.schemas.reporte import ReporteCreate, ReporteUpdate, ReporteResponse
+from app.schemas.comentario import ComentarioBase, ComentarioResponse
 from app.services.reportes import ReporteService
 from app.services.supabase_storage import subir_imagen_a_supabase
 from app.core.database import get_db
 from app.core.config import settings
-from app.models.usuario import UsuarioModel
-# Comentario en español: Importamos get_redis_client para validar si un token está en la lista negra
 from app.redis.client import get_redis_client
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +45,32 @@ router = APIRouter(
 )
 
 # Esquema para extraer el token JWT Bearer desde la cabecera 'Authorization'
-# tokenUrl indica a Swagger UI el endpoint relativo de donde obtener el token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# =========================================================================
+# ⚙️ FUNCIONES EN SEGUNDO PLANO (BACKGROUND TASKS)
+# =========================================================================
+
+def publicar_y_limpiar_cache(canal: str | None, mensaje: dict | None, claves_a_eliminar: list[str]):
+    """
+    Función auxiliar ejecutada en segundo plano por FastAPI para no bloquear el hilo de respuesta HTTP.
+    Realiza la evicción de las claves indicadas en Redis y publica eventos en el canal de Pub/Sub.
+    """
+    try:
+        redis_client = get_redis_client()
+        
+        # Evicción de caché
+        for clave in claves_a_eliminar:
+            redis_client.delete(clave)
+            logger.info(f"📡 [BACKGROUND TASK] Clave de caché '{clave}' invalidada con éxito.")
+        
+        # Publicación en Pub/Sub
+        if canal and mensaje:
+            redis_client.publish(canal, json.dumps(mensaje))
+            logger.info(f"📡 [BACKGROUND TASK] Evento '{mensaje.get('tipo')}' publicado en '{canal}'.")
+            
+    except Exception as err:
+        logger.error(f"❌ [BACKGROUND TASK ERROR] Error en la ejecución de tareas de Redis en segundo plano: {err}")
 
 # =========================================================================
 # 🛡️ DEPENDENCIA DE SEGURIDAD PARA VALIDAR TOKENS JWT
@@ -55,16 +82,6 @@ def get_current_user(
 ) -> UsuarioModel:
     """
     Dependencia de seguridad que valida el token JWT recibido en las cabeceras HTTP.
-    
-    ¿Cómo funciona esta validación académica?
-    -----------------------------------------
-    1. Extracción: OAuth2PasswordBearer intercepta la cabecera 'Authorization: Bearer <TOKEN>'.
-       Si no existe, arroja automáticamente una excepción 401 Unauthorized.
-    2. Validación de Lista Negra: Se verifica en Redis si el token ha sido invalidado por Logout.
-    3. Decodificación: Se procesa el token con 'jwt.decode' usando el SECRET y ALGORITHM.
-       Si el token expiró, está mal formado o alterado, se lanza una excepción de PyJWT (InvalidTokenError).
-    4. Consulta de Integridad: Se extrae el claim del correo ('sub') y se busca el registro en
-       la base de datos. Si el usuario no existe, el token no es válido.
     """
     credenciales_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -72,7 +89,7 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Comentario en español: Verificamos de forma segura y resiliente si el token está en la lista negra de Redis (Logout)
+    # Verificamos de forma segura si el token está en la lista negra de Redis
     try:
         redis_client = get_redis_client()
         if redis_client.exists(f"blacklist:{token}"):
@@ -81,11 +98,9 @@ def get_current_user(
     except HTTPException:
         raise
     except Exception as err:
-        # En caso de error de conexión con Redis, registramos pero permitimos pasar (Fail-Open)
         logger.error(f"Error al verificar la lista negra de tokens en Redis: {err}")
 
     try:
-        # Decodificar el JWT y validar su expiración de forma automática
         payload = jwt.decode(
             token, 
             settings.JWT_SECRET, 
@@ -97,8 +112,16 @@ def get_current_user(
     except InvalidTokenError:
         raise credenciales_exception
 
-    # Buscar el usuario dueño del token en la base de datos relacional
-    usuario = db.query(UsuarioModel).filter(UsuarioModel.email == email).first()
+    # Buscar el usuario dueño del token
+    try:
+        usuario = db.query(UsuarioModel).filter(UsuarioModel.email == email).first()
+    except SQLAlchemyError as db_err:
+        logger.error(f"❌ [DATABASE ERROR] Error al consultar usuario en get_current_user: {db_err}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Error de base de datos al validar credenciales del usuario."
+        )
+        
     if usuario is None:
         raise credenciales_exception
 
@@ -113,64 +136,22 @@ def get_current_user(
     response_model=List[ReporteResponse],
     status_code=status.HTTP_200_OK,
     summary="Listar todos los reportes",
-    description="Ruta pública. Retorna la lista completa de reportes de infraestructura de la universidad."
+    description="Ruta pública. Retorna la lista completa de reportes de infraestructura."
 )
 def listar_reportes(db: Session = Depends(get_db)):
     """
     Retorna la lista de reportes registrados.
-    
-    ¿Por qué es público?: Cualquier persona de la comunidad universitaria puede listar
-    los reportes, fallas o problemas existentes sin necesidad de estar logueado.
+    Delega al servicio para centralizar y unificar la gestión de caché.
     """
-    # Comentario en español: 1. Comprobar si existe la clave 'cache:reportes' en Redis (Flujo Cache Hit)
-    try:
-        redis_client = get_redis_client()
-        cached_data = redis_client.get("cache:reportes")
-        if cached_data:
-            logger.info("📡 [REDIS CACHE] Hit en endpoint GET / - Retornando datos desde 'cache:reportes'.")
-            return json.loads(cached_data)
-    except Exception as err:
-        # En caso de error de conexión con Redis, registramos pero permitimos pasar (Fail-Open)
-        logger.error(f"❌ [REDIS ERROR] Falló la lectura de caché 'cache:reportes': {err}")
-
-    # Comentario en español: 2. Flujo Cache Miss: realizar consulta a PostgreSQL en Supabase de forma segura
-    try:
-        logger.info("📡 [REDIS CACHE] Miss en endpoint GET / - Consultando base de datos relacional.")
-        reportes = db.query(ReporteModel).options(
-            joinedload(ReporteModel.usuario),
-            joinedload(ReporteModel.tecnico)
-        ).all()
-
-        # Comentario en español: 3. Serializar a formato compatible (lista de diccionarios)
-        datos_serializados = [ReporteService._reporte_a_dict(r) for r in reportes]
-    except Exception as db_err:
-        # Comentario en español: Registramos el error de base de datos detallado en los logs para auditoría interna
-        # y lanzamos una excepción limpia del framework con código HTTP 502 Bad Gateway.
-        logger.error(f"❌ [DATABASE ERROR] Error al consultar o serializar reportes en el flujo Cache Miss: {db_err}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Error de base de datos al recuperar reportes de infraestructura."
-        )
-
-    # Comentario en español: 4. Guardar datos serializados en Redis con un TTL de 300 segundos
-    try:
-        redis_client = get_redis_client()
-        redis_client.setex("cache:reportes", 300, json.dumps(datos_serializados))
-        logger.info("📡 [REDIS CACHE] Datos guardados en la clave 'cache:reportes' con TTL de 300 segundos.")
-    except Exception as err:
-        logger.error(f"❌ [REDIS ERROR] Falló la escritura en caché 'cache:reportes': {err}")
-
-    return datos_serializados
+    return ReporteService.listar_todos(db)
 
 
-# Comentario en español: Esta ruta se posiciona antes de la ruta dinámica '/{id}'
-# para evitar que FastAPI intente parsear el string literal 'mantenimiento' como un ID numérico (error 422).
 @router.get(
     "/mantenimiento",
     response_model=List[ReporteResponse],
     status_code=status.HTTP_200_OK,
     summary="Listar reportes asignados al personal de mantenimiento",
-    description="Ruta Protegida. Retorna la lista de fallas o problemas asignados al técnico autenticado."
+    description="Ruta Protegida. Retorna la lista de fallas asignadas al técnico autenticado."
 )
 def listar_reportes_mantenimiento(
     db: Session = Depends(get_db),
@@ -178,9 +159,6 @@ def listar_reportes_mantenimiento(
 ):
     """
     Retorna únicamente los reportes donde 'asignado_a' coincide con el ID del técnico autenticado.
-    Comentario en español: Esta consulta implementa un filtro de seguridad a nivel de base de datos
-    para asegurar que el personal técnico tenga acceso exclusivo a sus asignaciones correspondientes,
-    previniendo accesos indebidos por red.
     """
     try:
         reportes = db.query(ReporteModel).options(
@@ -188,9 +166,8 @@ def listar_reportes_mantenimiento(
             joinedload(ReporteModel.tecnico)
         ).filter(ReporteModel.asignado_a == usuario_actual.id).all()
         
-        # Serialización segura utilizando el mapper del servicio
         return [ReporteService._reporte_a_dict(r) for r in reportes]
-    except Exception as db_err:
+    except SQLAlchemyError as db_err:
         logger.error(f"❌ [DATABASE ERROR] Error al consultar reportes asignados: {db_err}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -207,7 +184,7 @@ def listar_reportes_mantenimiento(
 )
 def obtener_reporte(id: int, db: Session = Depends(get_db)):
     """
-    Busca un reporte en la base de datos por ID. Si no se encuentra, el servicio lanza un 404.
+    Busca un reporte en la base de datos por ID llamando al servicio.
     """
     return ReporteService.obtener_por_id(db, id)
 
@@ -220,9 +197,10 @@ def obtener_reporte(id: int, db: Session = Depends(get_db)):
     response_model=ReporteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear un reporte",
-    description="Ruta Protegida. Requiere cabecera 'Authorization: Bearer <TOKEN>'. Crea un reporte de falla o problema desde Multipart/Form-Data."
+    description="Ruta Protegida. Requiere cabecera 'Authorization: Bearer <TOKEN>'. Crea un reporte desde Multipart/Form-Data."
 )
 def crear_reporte(
+    background_tasks: BackgroundTasks,
     titulo: str = Form(...),
     descripcion: str = Form(...),
     tipo_problema: str = Form(...),
@@ -234,26 +212,17 @@ def crear_reporte(
     current_user: UsuarioModel = Depends(get_current_user)
 ):
     """
-    Crea un nuevo reporte recibiendo parámetros tipo Form y un archivo opcional.
-    Exige la inyección de 'current_user' para asegurar la identidad de quien reporta.
-    
-    ¿Cómo maneja FastAPI la carga de archivos con 'UploadFile'?
-    ----------------------------------------------------------
-    FastAPI expone la clase 'UploadFile' que almacena en memoria los archivos de pequeño
-    tamaño y en un archivo temporal en disco si exceden el límite, garantizando la
-    estabilidad de la memoria del servidor. Mediante 'imagen.file.read()' obtenemos
-    directamente los bytes del stream de archivo.
+    Crea un nuevo reporte.
+    Libera la respuesta HTTP de inmediato y delega la mensajería/caché en segundo plano.
     """
     imagen_url = None
     if imagen is not None and imagen.filename:
-        # Validación de seguridad del tipo de contenido (MIME type)
         if not imagen.content_type.startswith("image/"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El archivo proporcionado debe ser una imagen con formato válido (image/*)."
             )
         
-        # Generación de nombre único para evitar colisiones
         ext = os.path.splitext(imagen.filename)[1]
         if not ext or len(ext) > 10:
             ext = ".jpg"
@@ -268,10 +237,8 @@ def crear_reporte(
                 detail="No se pudo leer el archivo de imagen adjunto."
             )
             
-        # Subir los bytes directamente a Supabase Storage
         imagen_url = subir_imagen_a_supabase(file_bytes, file_name, imagen.content_type)
         
-    # Construcción de payload e invocación del servicio
     payload = ReporteCreate(
         titulo=titulo,
         descripcion=descripcion,
@@ -282,16 +249,33 @@ def crear_reporte(
         asignado_a=asignado_a
     )
     
-    # Se ejecuta la creación y persistencia (commit) a través del servicio
     nuevo_reporte = ReporteService.crear(db, payload)
 
-    # Comentario en español: Invalidación destructiva de la caché. Eliminamos 'cache:reportes' después de confirmar la persistencia.
+    # Pre-cargar relaciones para armar el mensaje de evento completo
     try:
-        redis_client = get_redis_client()
-        redis_client.delete("cache:reportes")
-        logger.info("📡 [REDIS CACHE] Caché 'cache:reportes' invalidada tras creación de un reporte.")
-    except Exception as err:
-        logger.error(f"❌ [REDIS ERROR] Falló la invalidación de la caché 'cache:reportes' tras creación: {err}")
+        db_reporte_completo = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.id == nuevo_reporte.id).first()
+    except SQLAlchemyError as db_err:
+        logger.error(f"❌ [DATABASE ERROR] Error al consultar reporte completo tras creación: {db_err}")
+        db_reporte_completo = nuevo_reporte
+
+    payload_datos = ReporteService._reporte_a_dict(db_reporte_completo)
+    mensaje = {
+        "tipo": "reporte:creado",
+        "payload": payload_datos,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "1.0.0"
+    }
+
+    # Planificar invalidación de caché global y publicación Pub/Sub en segundo plano
+    background_tasks.add_task(
+        publicar_y_limpiar_cache,
+        "campus:reporte:nuevo",
+        mensaje,
+        ["cache:reportes:all"]
+    )
 
     return nuevo_reporte
 
@@ -306,23 +290,67 @@ def crear_reporte(
 def actualizar_reporte(
     id: int, 
     payload: ReporteUpdate, 
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user)
 ):
     """
-    Actualiza el reporte indicado. Si el ID no existe en la base de datos, lanza 404.
-    Exige autenticación mediante token JWT.
+    Actualiza el reporte.
+    Responde inmediatamente y delega tareas en segundo plano.
     """
-    # Se ejecuta la actualización y persistencia (commit) a través del servicio registrando el autor
+    # Consultar estado previo para discriminar la acción
+    try:
+        reporte_previo = db.query(ReporteModel).filter(ReporteModel.id == id).first()
+    except SQLAlchemyError as db_err:
+        logger.error(f"❌ [DATABASE ERROR] Error al consultar reporte previo ID {id}: {db_err}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Error de base de datos al validar el reporte."
+        )
+
+    if not reporte_previo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Reporte {id} no encontrado"
+        )
+    
+    estado_previo = reporte_previo.estado
+    tecnico_previo = reporte_previo.asignado_a
+    
+    # Determinar acción
+    accion = "actualizar_estado"
+    if payload.asignado_a is not None and payload.asignado_a != tecnico_previo:
+        accion = "asignar_tecnico"
+
     reporte_actualizado = ReporteService.actualizar(db, id, payload, autor_id=current_user.id)
 
-    # Comentario en español: Invalidación destructiva de la caché. Eliminamos 'cache:reportes' después de confirmar la persistencia.
+    # Consultar reporte completo con relaciones frescas
     try:
-        redis_client = get_redis_client()
-        redis_client.delete("cache:reportes")
-        logger.info(f"📡 [REDIS CACHE] Caché 'cache:reportes' invalidada tras actualizar reporte ID {id}.")
-    except Exception as err:
-        logger.error(f"❌ [REDIS ERROR] Falló la invalidación de la caché 'cache:reportes' tras actualización: {err}")
+        db_reporte_completo = db.query(ReporteModel).options(
+            joinedload(ReporteModel.usuario),
+            joinedload(ReporteModel.tecnico)
+        ).filter(ReporteModel.id == reporte_actualizado.id).first()
+    except SQLAlchemyError:
+        db_reporte_completo = reporte_actualizado
+
+    canal = "campus:resuelto" if db_reporte_completo.estado == "resuelto" else "campus:estado:actualizado"
+    payload_datos = ReporteService._reporte_a_dict(db_reporte_completo)
+    
+    mensaje = {
+        "tipo": "reporte:actualizado",
+        "accion": accion,
+        "payload": payload_datos,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "1.0.0"
+    }
+
+    # Planificar invalidación de caché e información Pub/Sub en segundo plano
+    background_tasks.add_task(
+        publicar_y_limpiar_cache,
+        canal,
+        mensaje,
+        ["cache:reportes:all", f"cache:reportes:{id}"]
+    )
 
     return reporte_actualizado
 
@@ -335,100 +363,112 @@ def actualizar_reporte(
 )
 def eliminar_reporte(
     id: int, 
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user)
 ):
     """
-    Elimina el reporte de la base de datos.
-    Ruta restringida únicamente a usuarios autenticados.
+    Elimina el reporte llamando al servicio.
+    Responde inmediatamente y delega tareas en segundo plano.
     """
-    # Se ejecuta la eliminación y persistencia (commit) a través del servicio
     ReporteService.eliminar(db, id)
 
-    # Comentario en español: Invalidación destructiva de la caché. Eliminamos 'cache:reportes' después de confirmar la persistencia.
-    try:
-        redis_client = get_redis_client()
-        redis_client.delete("cache:reportes")
-        logger.info(f"📡 [REDIS CACHE] Caché 'cache:reportes' invalidada tras eliminar reporte ID {id}.")
-    except Exception as err:
-        logger.error(f"❌ [REDIS ERROR] Falló la invalidación de la caché 'cache:reportes' tras eliminación: {err}")
-
-    return {
-        "mensaje": f"El reporte con ID {id} ha sido eliminado exitosamente de la base de datos."
+    mensaje = {
+        "tipo": "reporte:eliminado",
+        "payload": {"id": id},
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "1.0.0"
     }
 
+    # Planificar tareas en segundo plano
+    background_tasks.add_task(
+        publicar_y_limpiar_cache,
+        "campus:reporte:eliminado",
+        mensaje,
+        ["cache:reportes:all", f"cache:reportes:{id}"]
+    )
 
-from app.schemas.comentario import ComentarioBase, ComentarioResponse
-from app.models.comentario import ComentarioModel
+    return {
+        "mensaje": f"El reporte con ID {id} ha sido eliminado exitosamente."
+    }
+
 
 @router.post(
     "/{id}/comentarios",
     response_model=ComentarioResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Agregar comentario a un problema o falla",
-    description="Ruta Protegida. Registra un nuevo comentario/nota técnica asociado al problema o falla e invalida su caché."
+    description="Ruta Protegida. Registra un nuevo comentario asociado a la falla."
 )
 def agregar_comentario(
     id: int,
     payload: ComentarioBase,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: UsuarioModel = Depends(get_current_user)
 ):
-    # Validar la existencia física del reporte
-    reporte = db.query(ReporteModel).filter(ReporteModel.id == id).first()
-    if not reporte:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Reporte no encontrado."
+    """
+    Agrega un comentario a un reporte.
+    Responde de forma inmediata y notifica asíncronamente en segundo plano.
+    """
+    try:
+        # Validar la existencia física del reporte
+        reporte = db.query(ReporteModel).filter(ReporteModel.id == id).first()
+        if not reporte:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reporte no encontrado."
+            )
+
+        # Crear el registro del comentario
+        nuevo_comentario = ComentarioModel(
+            reporte_id=id,
+            usuario_id=current_user.id,
+            texto=payload.texto
         )
 
-    # Crear el registro del comentario
-    nuevo_comentario = ComentarioModel(
-        reporte_id=id,
-        usuario_id=current_user.id,
-        texto=payload.texto
-    )
+        db.add(nuevo_comentario)
+        db.commit()
+        db.refresh(nuevo_comentario)
+        
+        # Pre-cargar relación de usuario para que Pydantic lo serialice en el DTO
+        db.refresh(nuevo_comentario, ["usuario"])
+        
+    except HTTPException:
+        raise
+    except SQLAlchemyError as db_err:
+        db.rollback()
+        logger.error(f"❌ [DATABASE ERROR] Error al agregar comentario al reporte {id}: {db_err}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Error de base de datos al registrar el comentario."
+        )
 
-    db.add(nuevo_comentario)
-    db.commit()
-    db.refresh(nuevo_comentario)
-    
-    # Pre-cargar relación de usuario para que Pydantic lo serialice en el DTO
-    db.refresh(nuevo_comentario, ["usuario"])
-
-    # Invalidar cachés para asegurar actualización inmediata
+    # Consultar reporte completo con relaciones para notificar la actualización
     try:
-        redis_client = get_redis_client()
-        redis_client.delete("campus:reportes:all")
-        redis_client.delete("cache:reportes")
-        redis_client.delete(f"campus:reportes:{id}")
-        logger.info(f"📡 [REDIS CACHE] Cachés invalidadas tras registrar comentario en reporte #{id}.")
-
-        # Comentario en español: Publicar evento de actualización en el canal Redis Pub/Sub para propagación
-        # en tiempo real a través del WebSocket de que hay una nueva nota técnica en el reporte.
         db_reporte_completo = db.query(ReporteModel).options(
             joinedload(ReporteModel.usuario),
             joinedload(ReporteModel.tecnico)
         ).filter(ReporteModel.id == id).first()
+    except SQLAlchemyError:
+        db_reporte_completo = None
+
+    if db_reporte_completo:
+        payload_datos = ReporteService._reporte_a_dict(db_reporte_completo)
+        mensaje = {
+            "tipo": "reporte:actualizado",
+            "accion": "agregar_comentario",
+            "payload": payload_datos,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "version": "1.0.0"
+        }
         
-        if db_reporte_completo:
-            import json
-            from datetime import timezone
-            payload_datos = ReporteService._reporte_a_dict(db_reporte_completo)
-            mensaje = {
-                "tipo": "reporte:actualizado",
-                "accion": "agregar_comentario",
-                "payload": payload_datos,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "version": "1.0.0"
-            }
-            redis_client.publish("campus:estado:actualizado", json.dumps(mensaje))
-            logger.info(f"📡 [REDIS PUB/SUB] Evento de comentario publicado en 'campus:estado:actualizado' para reporte #{id}.")
-    except Exception as err:
-        logger.error(f"❌ [REDIS ERROR] Falló la invalidación o publicación tras registrar comentario: {err}")
+        # Planificar invalidación de caché y publicación Pub/Sub en segundo plano
+        background_tasks.add_task(
+            publicar_y_limpiar_cache,
+            "campus:estado:actualizado",
+            mensaje,
+            ["cache:reportes:all", f"cache:reportes:{id}"]
+        )
 
     return nuevo_comentario
-
-
-
-
