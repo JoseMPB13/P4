@@ -53,3 +53,18 @@ def get_redis_client() -> redis.Redis:
     if redis_pool is None:
         raise ConnectionError("El pool de conexiones de Redis no ha sido inicializado.")
     return redis.Redis(connection_pool=redis_pool)
+
+def get_redis_pubsub_client() -> redis.Redis:
+    """
+    Retorna una instancia dedicada del cliente Redis para operaciones de Pub/Sub
+    de larga duración, sin un socket_timeout corto para evitar desconexiones constantes
+    y con TCP keepalive activo para mantener la estabilidad del canal.
+    """
+    return redis.Redis.from_url(
+        settings.REDIS_URL,
+        decode_responses=True,
+        socket_timeout=None,
+        socket_connect_timeout=5.0,
+        socket_keepalive=True
+    )
+

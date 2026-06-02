@@ -40,7 +40,7 @@ from app.core.config import settings
 from app.api.endpoints.reportes import router as reportes_router
 from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.usuarios import router as usuarios_router
-from app.redis.client import get_redis_client
+from app.redis.client import get_redis_client, get_redis_pubsub_client
 # Importación del middleware personalizado de control de frecuencia
 from app.middlewares.rate_limit import RateLimitMiddleware
 
@@ -118,7 +118,7 @@ def redis_pubsub_listener():
     while True:
         try:
             logger.info("📡 [Redis Listener Thread] Conectando a Redis Pub/Sub...")
-            redis_client = get_redis_client()
+            redis_client = get_redis_pubsub_client()
             
             # Verificación del estado del canal/cliente mediante ping
             redis_client.ping()
