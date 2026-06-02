@@ -93,8 +93,16 @@ class Token(BaseModel):
     """
     access_token: str = Field(..., description="Token de acceso firmado digitalmente mediante JWT")
     token_type: str = Field(default="bearer", description="Esquema de autenticación (comúnmente 'bearer')")
+    refresh_token: str = Field(..., description="Token de refresco de larga duración firmado mediante JWT")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TokenRefreshRequest(BaseModel):
+    """
+    DTO utilizado para validar el payload de la petición de refresco de token.
+    """
+    refresh_token: str = Field(..., description="Token de refresco JWT para solicitar un nuevo token de acceso")
 
 
 from typing import Optional

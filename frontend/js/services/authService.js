@@ -57,6 +57,7 @@ export const authService = {
         // Guardar token en el almacenamiento de sesión
         sessionStorage.setItem("token", data.access_token);
         sessionStorage.setItem("token_type", data.token_type);
+        sessionStorage.setItem("refresh_token", data.refresh_token);
 
         // Extraer y decodificar datos del usuario
         const payload = decodificarToken(data.access_token);
@@ -121,6 +122,7 @@ export const authService = {
         // Limpiar almacenamiento local (Fail-Safe)
         sessionStorage.removeItem("token");
         sessionStorage.removeItem("token_type");
+        sessionStorage.removeItem("refresh_token");
         sessionStorage.removeItem("usuario");
     },
 

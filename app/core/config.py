@@ -64,7 +64,12 @@ class Settings(BaseSettings):
 
     # Tiempo de expiración del token de acceso (en minutos)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=60
+        default=15
+    )
+
+    # Tiempo de expiración del token de refresco (en días)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=7
     )
 
     # Configuración para que Pydantic lea el archivo .env desde la raíz del proyecto

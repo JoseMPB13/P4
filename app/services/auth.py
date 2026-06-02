@@ -90,3 +90,30 @@ class AuthService:
         )
         
         return encoded_jwt
+
+    @staticmethod
+    def crear_refresh_token(data: dict) -> str:
+        """
+        Genera un token de refresco de larga duración firmado digitalmente (JWT).
+        """
+        to_encode = data.copy()
+        
+        # Tiempo de expiración estricto de 7 días (u otra duración configurada)
+        tiempo_expiracion = datetime.now(timezone.utc) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
+        
+        # Inyectar el claim de expiración y el tipo de token de refresco para distinguirlo
+        to_encode.update({
+            "exp": tiempo_expiracion,
+            "token_type": "refresh"
+        })
+        
+        # Codificar y firmar digitalmente el token JWT
+        encoded_jwt = jwt.encode(
+            to_encode, 
+            settings.JWT_SECRET, 
+            algorithm=settings.JWT_ALGORITHM
+        )
+        
+        return encoded_jwt

@@ -107,7 +107,7 @@ def get_current_user(
             algorithms=[settings.JWT_ALGORITHM]
         )
         email: str = payload.get("sub")
-        if email is None:
+        if email is None or payload.get("token_type") == "refresh":
             raise credenciales_exception
     except InvalidTokenError:
         raise credenciales_exception

@@ -19,7 +19,7 @@ import logging
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.usuario import UsuarioModel
-from app.schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioResponse, Token
+from app.schemas.usuario import UsuarioCreate, UsuarioLogin, UsuarioResponse, Token, TokenRefreshRequest
 from app.services.auth import AuthService
 from app.redis.client import get_redis_client
 
@@ -122,11 +122,81 @@ def iniciar_sesion(payload: UsuarioLogin, db: Session = Depends(get_db)):
         "rol": usuario.rol
     }
     access_token = AuthService.crear_access_token(data=token_data)
+    refresh_token = AuthService.crear_refresh_token(data=token_data)
     
     # 4. Retornar el token formateado según el esquema Token
     return Token(
         access_token=access_token,
-        token_type="bearer"
+        token_type="bearer",
+        refresh_token=refresh_token
+    )
+
+@router.post(
+    "/refresh",
+    response_model=Token,
+    status_code=status.HTTP_200_OK,
+    summary="Refrescar el token de acceso",
+    description="Recibe un token de refresco válido y genera un nuevo par de access y refresh tokens."
+)
+def refrescar_token(payload: TokenRefreshRequest, db: Session = Depends(get_db)):
+    """
+    Controlador para emitir un nuevo access token de 15 minutos a partir de un refresh token.
+    """
+    credenciales_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Token de refresco inválido o ha expirado.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    # 1. Verificar si el refresh token está en la lista negra de Redis
+    try:
+        redis_client = get_redis_client()
+        if redis_client.exists(f"blacklist:{payload.refresh_token}"):
+            logger.warning("Intento de refresco denegado: Token se encuentra en la lista negra (Blacklist).")
+            raise credenciales_exception
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error(f"Error al verificar la lista negra de tokens en Redis: {err}")
+
+    # 2. Decodificar y validar el token de refresco
+    try:
+        token_payload = jwt.decode(
+            payload.refresh_token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        
+        # Validar que sea un token de refresco
+        if token_payload.get("token_type") != "refresh":
+            raise credenciales_exception
+            
+        email: str = token_payload.get("sub")
+        if email is None:
+            raise credenciales_exception
+    except InvalidTokenError:
+        raise credenciales_exception
+
+    # 3. Buscar al usuario
+    usuario = db.query(UsuarioModel).filter(UsuarioModel.email == email).first()
+    if not usuario:
+        raise credenciales_exception
+
+    # 4. Generar nuevos tokens
+    token_data = {
+        "sub": usuario.email,
+        "nombre": usuario.nombre,
+        "id": usuario.id,
+        "rol": usuario.rol
+    }
+    
+    nuevo_access_token = AuthService.crear_access_token(data=token_data)
+    nuevo_refresh_token = AuthService.crear_refresh_token(data=token_data)
+
+    return Token(
+        access_token=nuevo_access_token,
+        token_type="bearer",
+        refresh_token=nuevo_refresh_token
     )
 
 @router.post(
